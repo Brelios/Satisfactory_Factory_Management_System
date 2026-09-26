@@ -402,7 +402,7 @@
     "iron_ingot": {
       "display_name": "Iron Ingot",
       "machine_id": "smelter",
-      "duration": 4.0,
+      "duration": 2.0,
       "ingredients": [
         {
           "item_id": "iron_ore",
@@ -420,7 +420,7 @@
     "copper_ingot": {
       "display_name": "Copper Ingot",
       "machine_id": "smelter",
-      "duration": 4.0,
+      "duration": 2.0,
       "ingredients": [
         {
           "item_id": "copper_ore",

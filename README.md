@@ -60,7 +60,7 @@ curl -X POST http://localhost:8000/api/solve \
   }'
 ```
 
-**Result:** 30 Modular Frames/min from 720 Iron Ore using 122 machines at 743 MW.
+**Result:** 30 Modular Frames/min from 720 Iron Ore using 97 machines at 647 MW.
 
 ## Project Structure
 
