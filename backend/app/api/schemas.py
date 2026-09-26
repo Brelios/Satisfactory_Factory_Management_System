@@ -1,0 +1,58 @@
+from pydantic import BaseModel
+from typing import Literal, Dict, List, Optional
+
+class SolveRequest(BaseModel):
+    mode: Literal["resource_constrained", "target_driven"]
+    resources: Optional[Dict[str, float]] = None
+    targets: Optional[Dict[str, float]] = None
+    target_items: Optional[List[str]] = None
+    unlocked_alts: List[str] = []
+    optimization: str = "maximize_output"
+
+class ProductionStepResponse(BaseModel):
+    step_id: str
+    recipe_id: str
+    recipe_name: str
+    machine: str
+    machine_count: int
+    clock_speed: float
+    input_rates: Dict[str, float]
+    output_rates: Dict[str, float]
+    power_mw: float
+
+class BeltConnectionResponse(BaseModel):
+    from_step: str
+    to_step: str
+    item: str
+    rate: float
+    belt_tier: int
+
+class SolveResponse(BaseModel):
+    steps: List[ProductionStepResponse]
+    connections: List[BeltConnectionResponse]
+    blueprint_svg: str
+    total_power_mw: float
+    total_machines: int
+    target_outputs: Dict[str, float]
+    resource_usage: Dict[str, float]
+    shopping_list: Dict[str, int]
+
+class ItemResponse(BaseModel):
+    id: str
+    display_name: str
+    form: str
+    is_resource: bool
+
+class RecipeResponse(BaseModel):
+    id: str
+    display_name: str
+    machine: str
+    duration: float
+    ingredients: List[dict]
+    products: List[dict]
+    is_alternate: bool
+
+class BuildingResponse(BaseModel):
+    id: str
+    display_name: str
+    power_mw: float

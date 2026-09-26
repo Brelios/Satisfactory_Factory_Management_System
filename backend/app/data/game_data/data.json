@@ -1,0 +1,1067 @@
+{
+  "meta": {
+    "game_version": "1.0",
+    "data_version": "1.0.0"
+  },
+  "belt_speeds": [
+    60,
+    120,
+    270,
+    480,
+    780,
+    1200
+  ],
+  "items": {
+    "iron_ore": {
+      "display_name": "Iron Ore",
+      "form": "solid",
+      "is_resource": true,
+      "sink_points": 1,
+      "icon_color": "#B5A68C"
+    },
+    "copper_ore": {
+      "display_name": "Copper Ore",
+      "form": "solid",
+      "is_resource": true,
+      "sink_points": 3,
+      "icon_color": "#E87C3C"
+    },
+    "limestone": {
+      "display_name": "Limestone",
+      "form": "solid",
+      "is_resource": true,
+      "sink_points": 2,
+      "icon_color": "#D4C5A9"
+    },
+    "coal": {
+      "display_name": "Coal",
+      "form": "solid",
+      "is_resource": true,
+      "sink_points": 3,
+      "icon_color": "#3D3D3D"
+    },
+    "caterium_ore": {
+      "display_name": "Caterium Ore",
+      "form": "solid",
+      "is_resource": true,
+      "sink_points": 7,
+      "icon_color": "#C8A87C"
+    },
+    "raw_quartz": {
+      "display_name": "Raw Quartz",
+      "form": "solid",
+      "is_resource": true,
+      "sink_points": 15,
+      "icon_color": "#C8A87C"
+    },
+    "sulfur": {
+      "display_name": "Sulfur",
+      "form": "solid",
+      "is_resource": true,
+      "sink_points": 11,
+      "icon_color": "#C8A87C"
+    },
+    "bauxite": {
+      "display_name": "Bauxite",
+      "form": "solid",
+      "is_resource": true,
+      "sink_points": 8,
+      "icon_color": "#C8A87C"
+    },
+    "nitrogen_gas": {
+      "display_name": "Nitrogen Gas",
+      "form": "gas",
+      "is_resource": true,
+      "sink_points": 10,
+      "icon_color": "#C8A87C"
+    },
+    "water": {
+      "display_name": "Water",
+      "form": "liquid",
+      "is_resource": true,
+      "sink_points": 0,
+      "icon_color": "#C8A87C"
+    },
+    "crude_oil": {
+      "display_name": "Crude Oil",
+      "form": "liquid",
+      "is_resource": true,
+      "sink_points": 0,
+      "icon_color": "#3D3D3D"
+    },
+    "iron_ingot": {
+      "display_name": "Iron Ingot",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 2,
+      "icon_color": "#B5A68C"
+    },
+    "copper_ingot": {
+      "display_name": "Copper Ingot",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 6,
+      "icon_color": "#E87C3C"
+    },
+    "steel_ingot": {
+      "display_name": "Steel Ingot",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 8,
+      "icon_color": "#6B7B8D"
+    },
+    "caterium_ingot": {
+      "display_name": "Caterium Ingot",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 42,
+      "icon_color": "#C8A87C"
+    },
+    "quartz_crystal": {
+      "display_name": "Quartz Crystal",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 50,
+      "icon_color": "#C8A87C"
+    },
+    "silica": {
+      "display_name": "Silica",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 20,
+      "icon_color": "#C8A87C"
+    },
+    "aluminum_ingot": {
+      "display_name": "Aluminum Ingot",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 131,
+      "icon_color": "#C8A87C"
+    },
+    "iron_plate": {
+      "display_name": "Iron Plate",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 6,
+      "icon_color": "#B5A68C"
+    },
+    "iron_rod": {
+      "display_name": "Iron Rod",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 4,
+      "icon_color": "#B5A68C"
+    },
+    "screw": {
+      "display_name": "Screw",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 2,
+      "icon_color": "#B5A68C"
+    },
+    "reinforced_iron_plate": {
+      "display_name": "Reinforced Iron Plate",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 120,
+      "icon_color": "#B5A68C"
+    },
+    "modular_frame": {
+      "display_name": "Modular Frame",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 408,
+      "icon_color": "#B5A68C"
+    },
+    "wire": {
+      "display_name": "Wire",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 6,
+      "icon_color": "#E87C3C"
+    },
+    "cable": {
+      "display_name": "Cable",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 24,
+      "icon_color": "#E87C3C"
+    },
+    "copper_sheet": {
+      "display_name": "Copper Sheet",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 24,
+      "icon_color": "#E87C3C"
+    },
+    "steel_beam": {
+      "display_name": "Steel Beam",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 64,
+      "icon_color": "#6B7B8D"
+    },
+    "steel_pipe": {
+      "display_name": "Steel Pipe",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 24,
+      "icon_color": "#6B7B8D"
+    },
+    "encased_industrial_beam": {
+      "display_name": "Encased Industrial Beam",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 632,
+      "icon_color": "#6B7B8D"
+    },
+    "concrete": {
+      "display_name": "Concrete",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 12,
+      "icon_color": "#D4C5A9"
+    },
+    "heavy_modular_frame": {
+      "display_name": "Heavy Modular Frame",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 11520,
+      "icon_color": "#C8A87C"
+    },
+    "rotor": {
+      "display_name": "Rotor",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 140,
+      "icon_color": "#C8A87C"
+    },
+    "stator": {
+      "display_name": "Stator",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 240,
+      "icon_color": "#C8A87C"
+    },
+    "motor": {
+      "display_name": "Motor",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 1520,
+      "icon_color": "#C8A87C"
+    },
+    "smart_plating": {
+      "display_name": "Smart Plating",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 520,
+      "icon_color": "#C8A87C"
+    },
+    "versatile_framework": {
+      "display_name": "Versatile Framework",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 1176,
+      "icon_color": "#C8A87C"
+    },
+    "automated_wiring": {
+      "display_name": "Automated Wiring",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 1440,
+      "icon_color": "#C8A87C"
+    },
+    "plastic": {
+      "display_name": "Plastic",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 75,
+      "icon_color": "#3D3D3D"
+    },
+    "rubber": {
+      "display_name": "Rubber",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 60,
+      "icon_color": "#3D3D3D"
+    },
+    "fuel": {
+      "display_name": "Fuel",
+      "form": "liquid",
+      "is_resource": false,
+      "sink_points": 75,
+      "icon_color": "#3D3D3D"
+    },
+    "petroleum_coke": {
+      "display_name": "Petroleum Coke",
+      "form": "solid",
+      "is_resource": false,
+      "sink_points": 20,
+      "icon_color": "#3D3D3D"
+    }
+  },
+  "buildings": {
+    "smelter": {
+      "display_name": "Smelter",
+      "power_consumption": 4.0,
+      "power_exponent": 1.321929,
+      "width": 5.0,
+      "length": 9.0,
+      "height": 9.0,
+      "solid_inputs": 1,
+      "solid_outputs": 1,
+      "fluid_inputs": 0,
+      "fluid_outputs": 0
+    },
+    "foundry": {
+      "display_name": "Foundry",
+      "power_consumption": 16.0,
+      "power_exponent": 1.321929,
+      "width": 10.0,
+      "length": 9.0,
+      "height": 9.0,
+      "solid_inputs": 2,
+      "solid_outputs": 1,
+      "fluid_inputs": 0,
+      "fluid_outputs": 0
+    },
+    "constructor": {
+      "display_name": "Constructor",
+      "power_consumption": 4.0,
+      "power_exponent": 1.321929,
+      "width": 8.0,
+      "length": 10.0,
+      "height": 8.0,
+      "solid_inputs": 1,
+      "solid_outputs": 1,
+      "fluid_inputs": 0,
+      "fluid_outputs": 0
+    },
+    "assembler": {
+      "display_name": "Assembler",
+      "power_consumption": 15.0,
+      "power_exponent": 1.321929,
+      "width": 10.0,
+      "length": 15.0,
+      "height": 11.0,
+      "solid_inputs": 2,
+      "solid_outputs": 1,
+      "fluid_inputs": 0,
+      "fluid_outputs": 0
+    },
+    "manufacturer": {
+      "display_name": "Manufacturer",
+      "power_consumption": 55.0,
+      "power_exponent": 1.321929,
+      "width": 18.0,
+      "length": 20.0,
+      "height": 12.0,
+      "solid_inputs": 4,
+      "solid_outputs": 1,
+      "fluid_inputs": 0,
+      "fluid_outputs": 0
+    },
+    "refinery": {
+      "display_name": "Refinery",
+      "power_consumption": 30.0,
+      "power_exponent": 1.321929,
+      "width": 10.0,
+      "length": 20.0,
+      "height": 31.0,
+      "solid_inputs": 1,
+      "solid_outputs": 1,
+      "fluid_inputs": 1,
+      "fluid_outputs": 1
+    },
+    "blender": {
+      "display_name": "Blender",
+      "power_consumption": 75.0,
+      "power_exponent": 1.321929,
+      "width": 18.0,
+      "length": 16.0,
+      "height": 15.0,
+      "solid_inputs": 2,
+      "solid_outputs": 1,
+      "fluid_inputs": 2,
+      "fluid_outputs": 1
+    },
+    "packager": {
+      "display_name": "Packager",
+      "power_consumption": 10.0,
+      "power_exponent": 1.321929,
+      "width": 8.0,
+      "length": 8.0,
+      "height": 12.0,
+      "solid_inputs": 1,
+      "solid_outputs": 1,
+      "fluid_inputs": 1,
+      "fluid_outputs": 1
+    }
+  },
+  "recipes": {
+    "iron_ingot": {
+      "display_name": "Iron Ingot",
+      "machine_id": "smelter",
+      "duration": 4.0,
+      "ingredients": [
+        {
+          "item_id": "iron_ore",
+          "amount": 1
+        }
+      ],
+      "products": [
+        {
+          "item_id": "iron_ingot",
+          "amount": 1
+        }
+      ],
+      "is_alternate": false
+    },
+    "copper_ingot": {
+      "display_name": "Copper Ingot",
+      "machine_id": "smelter",
+      "duration": 4.0,
+      "ingredients": [
+        {
+          "item_id": "copper_ore",
+          "amount": 1
+        }
+      ],
+      "products": [
+        {
+          "item_id": "copper_ingot",
+          "amount": 1
+        }
+      ],
+      "is_alternate": false
+    },
+    "iron_plate": {
+      "display_name": "Iron Plate",
+      "machine_id": "constructor",
+      "duration": 6.0,
+      "ingredients": [
+        {
+          "item_id": "iron_ingot",
+          "amount": 3
+        }
+      ],
+      "products": [
+        {
+          "item_id": "iron_plate",
+          "amount": 2
+        }
+      ],
+      "is_alternate": false
+    },
+    "iron_rod": {
+      "display_name": "Iron Rod",
+      "machine_id": "constructor",
+      "duration": 4.0,
+      "ingredients": [
+        {
+          "item_id": "iron_ingot",
+          "amount": 1
+        }
+      ],
+      "products": [
+        {
+          "item_id": "iron_rod",
+          "amount": 1
+        }
+      ],
+      "is_alternate": false
+    },
+    "screw": {
+      "display_name": "Screw",
+      "machine_id": "constructor",
+      "duration": 6.0,
+      "ingredients": [
+        {
+          "item_id": "iron_rod",
+          "amount": 1
+        }
+      ],
+      "products": [
+        {
+          "item_id": "screw",
+          "amount": 4
+        }
+      ],
+      "is_alternate": false
+    },
+    "wire": {
+      "display_name": "Wire",
+      "machine_id": "constructor",
+      "duration": 4.0,
+      "ingredients": [
+        {
+          "item_id": "copper_ingot",
+          "amount": 1
+        }
+      ],
+      "products": [
+        {
+          "item_id": "wire",
+          "amount": 2
+        }
+      ],
+      "is_alternate": false
+    },
+    "cable": {
+      "display_name": "Cable",
+      "machine_id": "constructor",
+      "duration": 2.0,
+      "ingredients": [
+        {
+          "item_id": "wire",
+          "amount": 2
+        }
+      ],
+      "products": [
+        {
+          "item_id": "cable",
+          "amount": 1
+        }
+      ],
+      "is_alternate": false
+    },
+    "concrete": {
+      "display_name": "Concrete",
+      "machine_id": "constructor",
+      "duration": 4.0,
+      "ingredients": [
+        {
+          "item_id": "limestone",
+          "amount": 3
+        }
+      ],
+      "products": [
+        {
+          "item_id": "concrete",
+          "amount": 1
+        }
+      ],
+      "is_alternate": false
+    },
+    "copper_sheet": {
+      "display_name": "Copper Sheet",
+      "machine_id": "constructor",
+      "duration": 6.0,
+      "ingredients": [
+        {
+          "item_id": "copper_ingot",
+          "amount": 2
+        }
+      ],
+      "products": [
+        {
+          "item_id": "copper_sheet",
+          "amount": 1
+        }
+      ],
+      "is_alternate": false
+    },
+    "steel_ingot": {
+      "display_name": "Steel Ingot",
+      "machine_id": "foundry",
+      "duration": 4.0,
+      "ingredients": [
+        {
+          "item_id": "iron_ore",
+          "amount": 3
+        },
+        {
+          "item_id": "coal",
+          "amount": 3
+        }
+      ],
+      "products": [
+        {
+          "item_id": "steel_ingot",
+          "amount": 3
+        }
+      ],
+      "is_alternate": false
+    },
+    "steel_beam": {
+      "display_name": "Steel Beam",
+      "machine_id": "constructor",
+      "duration": 4.0,
+      "ingredients": [
+        {
+          "item_id": "steel_ingot",
+          "amount": 4
+        }
+      ],
+      "products": [
+        {
+          "item_id": "steel_beam",
+          "amount": 1
+        }
+      ],
+      "is_alternate": false
+    },
+    "steel_pipe": {
+      "display_name": "Steel Pipe",
+      "machine_id": "constructor",
+      "duration": 6.0,
+      "ingredients": [
+        {
+          "item_id": "steel_ingot",
+          "amount": 3
+        }
+      ],
+      "products": [
+        {
+          "item_id": "steel_pipe",
+          "amount": 2
+        }
+      ],
+      "is_alternate": false
+    },
+    "reinforced_iron_plate": {
+      "display_name": "Reinforced Iron Plate",
+      "machine_id": "assembler",
+      "duration": 12.0,
+      "ingredients": [
+        {
+          "item_id": "iron_plate",
+          "amount": 6
+        },
+        {
+          "item_id": "screw",
+          "amount": 12
+        }
+      ],
+      "products": [
+        {
+          "item_id": "reinforced_iron_plate",
+          "amount": 1
+        }
+      ],
+      "is_alternate": false
+    },
+    "rotor": {
+      "display_name": "Rotor",
+      "machine_id": "assembler",
+      "duration": 15.0,
+      "ingredients": [
+        {
+          "item_id": "iron_rod",
+          "amount": 5
+        },
+        {
+          "item_id": "screw",
+          "amount": 25
+        }
+      ],
+      "products": [
+        {
+          "item_id": "rotor",
+          "amount": 1
+        }
+      ],
+      "is_alternate": false
+    },
+    "modular_frame": {
+      "display_name": "Modular Frame",
+      "machine_id": "assembler",
+      "duration": 60.0,
+      "ingredients": [
+        {
+          "item_id": "reinforced_iron_plate",
+          "amount": 3
+        },
+        {
+          "item_id": "iron_rod",
+          "amount": 12
+        }
+      ],
+      "products": [
+        {
+          "item_id": "modular_frame",
+          "amount": 2
+        }
+      ],
+      "is_alternate": false
+    },
+    "encased_industrial_beam": {
+      "display_name": "Encased Industrial Beam",
+      "machine_id": "assembler",
+      "duration": 10.0,
+      "ingredients": [
+        {
+          "item_id": "steel_beam",
+          "amount": 4
+        },
+        {
+          "item_id": "concrete",
+          "amount": 5
+        }
+      ],
+      "products": [
+        {
+          "item_id": "encased_industrial_beam",
+          "amount": 1
+        }
+      ],
+      "is_alternate": false
+    },
+    "stator": {
+      "display_name": "Stator",
+      "machine_id": "assembler",
+      "duration": 12.0,
+      "ingredients": [
+        {
+          "item_id": "steel_pipe",
+          "amount": 3
+        },
+        {
+          "item_id": "wire",
+          "amount": 2
+        }
+      ],
+      "products": [
+        {
+          "item_id": "stator",
+          "amount": 1
+        }
+      ],
+      "is_alternate": false
+    },
+    "motor": {
+      "display_name": "Motor",
+      "machine_id": "assembler",
+      "duration": 12.0,
+      "ingredients": [
+        {
+          "item_id": "rotor",
+          "amount": 2
+        },
+        {
+          "item_id": "stator",
+          "amount": 2
+        }
+      ],
+      "products": [
+        {
+          "item_id": "motor",
+          "amount": 1
+        }
+      ],
+      "is_alternate": false
+    },
+    "heavy_modular_frame": {
+      "display_name": "Heavy Modular Frame",
+      "machine_id": "manufacturer",
+      "duration": 30.0,
+      "ingredients": [
+        {
+          "item_id": "modular_frame",
+          "amount": 5
+        },
+        {
+          "item_id": "steel_pipe",
+          "amount": 20
+        },
+        {
+          "item_id": "encased_industrial_beam",
+          "amount": 5
+        },
+        {
+          "item_id": "screw",
+          "amount": 120
+        }
+      ],
+      "products": [
+        {
+          "item_id": "heavy_modular_frame",
+          "amount": 1
+        }
+      ],
+      "is_alternate": false
+    },
+    "smart_plating": {
+      "display_name": "Smart Plating",
+      "machine_id": "assembler",
+      "duration": 30.0,
+      "ingredients": [
+        {
+          "item_id": "reinforced_iron_plate",
+          "amount": 1
+        },
+        {
+          "item_id": "rotor",
+          "amount": 1
+        }
+      ],
+      "products": [
+        {
+          "item_id": "smart_plating",
+          "amount": 1
+        }
+      ],
+      "is_alternate": false
+    },
+    "versatile_framework": {
+      "display_name": "Versatile Framework",
+      "machine_id": "assembler",
+      "duration": 24.0,
+      "ingredients": [
+        {
+          "item_id": "modular_frame",
+          "amount": 1
+        },
+        {
+          "item_id": "steel_beam",
+          "amount": 12
+        }
+      ],
+      "products": [
+        {
+          "item_id": "versatile_framework",
+          "amount": 2
+        }
+      ],
+      "is_alternate": false
+    },
+    "automated_wiring": {
+      "display_name": "Automated Wiring",
+      "machine_id": "assembler",
+      "duration": 24.0,
+      "ingredients": [
+        {
+          "item_id": "stator",
+          "amount": 1
+        },
+        {
+          "item_id": "cable",
+          "amount": 20
+        }
+      ],
+      "products": [
+        {
+          "item_id": "automated_wiring",
+          "amount": 1
+        }
+      ],
+      "is_alternate": false
+    },
+    "alternate_cast_screw": {
+      "display_name": "Alternate: Cast Screw",
+      "machine_id": "constructor",
+      "duration": 24.0,
+      "ingredients": [
+        {
+          "item_id": "iron_ingot",
+          "amount": 5
+        }
+      ],
+      "products": [
+        {
+          "item_id": "screw",
+          "amount": 20
+        }
+      ],
+      "is_alternate": true
+    },
+    "alternate_bolted_frame": {
+      "display_name": "Alternate: Bolted Frame",
+      "machine_id": "assembler",
+      "duration": 24.0,
+      "ingredients": [
+        {
+          "item_id": "reinforced_iron_plate",
+          "amount": 3
+        },
+        {
+          "item_id": "screw",
+          "amount": 56
+        }
+      ],
+      "products": [
+        {
+          "item_id": "modular_frame",
+          "amount": 2
+        }
+      ],
+      "is_alternate": true
+    },
+    "alternate_steeled_frame": {
+      "display_name": "Alternate: Steeled Frame",
+      "machine_id": "assembler",
+      "duration": 60.0,
+      "ingredients": [
+        {
+          "item_id": "reinforced_iron_plate",
+          "amount": 2
+        },
+        {
+          "item_id": "steel_pipe",
+          "amount": 10
+        }
+      ],
+      "products": [
+        {
+          "item_id": "modular_frame",
+          "amount": 3
+        }
+      ],
+      "is_alternate": true
+    },
+    "alternate_iron_wire": {
+      "display_name": "Alternate: Iron Wire",
+      "machine_id": "constructor",
+      "duration": 12.0,
+      "ingredients": [
+        {
+          "item_id": "iron_ingot",
+          "amount": 5
+        }
+      ],
+      "products": [
+        {
+          "item_id": "wire",
+          "amount": 9
+        }
+      ],
+      "is_alternate": true
+    },
+    "alternate_stitched_iron_plate": {
+      "display_name": "Alternate: Stitched Iron Plate",
+      "machine_id": "assembler",
+      "duration": 32.0,
+      "ingredients": [
+        {
+          "item_id": "iron_plate",
+          "amount": 10
+        },
+        {
+          "item_id": "wire",
+          "amount": 20
+        }
+      ],
+      "products": [
+        {
+          "item_id": "reinforced_iron_plate",
+          "amount": 3
+        }
+      ],
+      "is_alternate": true
+    },
+    "alternate_solid_steel_ingot": {
+      "display_name": "Alternate: Solid Steel Ingot",
+      "machine_id": "foundry",
+      "duration": 3.0,
+      "ingredients": [
+        {
+          "item_id": "iron_ingot",
+          "amount": 2
+        },
+        {
+          "item_id": "coal",
+          "amount": 2
+        }
+      ],
+      "products": [
+        {
+          "item_id": "steel_ingot",
+          "amount": 3
+        }
+      ],
+      "is_alternate": true
+    },
+    "alternate_steel_screw": {
+      "display_name": "Alternate: Steel Screw",
+      "machine_id": "constructor",
+      "duration": 12.0,
+      "ingredients": [
+        {
+          "item_id": "steel_beam",
+          "amount": 1
+        }
+      ],
+      "products": [
+        {
+          "item_id": "screw",
+          "amount": 52
+        }
+      ],
+      "is_alternate": true
+    },
+    "alternate_heavy_encased_frame": {
+      "display_name": "Alternate: Heavy Encased Frame",
+      "machine_id": "manufacturer",
+      "duration": 64.0,
+      "ingredients": [
+        {
+          "item_id": "modular_frame",
+          "amount": 8
+        },
+        {
+          "item_id": "encased_industrial_beam",
+          "amount": 10
+        },
+        {
+          "item_id": "steel_pipe",
+          "amount": 36
+        },
+        {
+          "item_id": "concrete",
+          "amount": 22
+        }
+      ],
+      "products": [
+        {
+          "item_id": "heavy_modular_frame",
+          "amount": 3
+        }
+      ],
+      "is_alternate": true
+    },
+    "alternate_encased_industrial_pipe": {
+      "display_name": "Alternate: Encased Industrial Pipe",
+      "machine_id": "assembler",
+      "duration": 15.0,
+      "ingredients": [
+        {
+          "item_id": "steel_pipe",
+          "amount": 6
+        },
+        {
+          "item_id": "concrete",
+          "amount": 5
+        }
+      ],
+      "products": [
+        {
+          "item_id": "encased_industrial_beam",
+          "amount": 1
+        }
+      ],
+      "is_alternate": true
+    },
+    "alternate_bolted_rotor": {
+      "display_name": "Alternate: Bolted Rotor",
+      "machine_id": "assembler",
+      "duration": 24.0,
+      "ingredients": [
+        {
+          "item_id": "iron_plate",
+          "amount": 2
+        },
+        {
+          "item_id": "screw",
+          "amount": 25
+        }
+      ],
+      "products": [
+        {
+          "item_id": "rotor",
+          "amount": 1
+        }
+      ],
+      "is_alternate": true
+    }
+  }
+}

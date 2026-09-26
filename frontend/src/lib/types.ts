@@ -1,0 +1,75 @@
+/**
+ * TypeScript interfaces matching the backend API schemas.
+ */
+
+export interface SolveRequest {
+  mode: "resource_constrained" | "target_driven";
+  resources?: Record<string, number>;
+  targets?: Record<string, number>;
+  target_items?: string[];
+  unlocked_alts?: string[];
+  optimization?: string;
+}
+
+export interface ProductionStep {
+  step_id: string;
+  recipe_id: string;
+  recipe_name: string;
+  machine: string;
+  machine_count: number;
+  clock_speed: number;
+  input_rates: Record<string, number>;
+  output_rates: Record<string, number>;
+  power_mw: number;
+}
+
+export interface BeltConnection {
+  from_step: string;
+  to_step: string;
+  item: string;
+  rate: number;
+  belt_tier: number;
+}
+
+export interface SolveResponse {
+  steps: ProductionStep[];
+  connections: BeltConnection[];
+  blueprint_svg: string;
+  total_power_mw: number;
+  total_machines: number;
+  target_outputs: Record<string, number>;
+  resource_usage: Record<string, number>;
+  shopping_list: Record<string, number>;
+}
+
+export interface GameItem {
+  id: string;
+  display_name: string;
+  form: string;
+  is_resource: boolean;
+}
+
+export interface GameRecipe {
+  id: string;
+  display_name: string;
+  machine: string;
+  duration: number;
+  ingredients: { item_id: string; amount: number }[];
+  products: { item_id: string; amount: number }[];
+  is_alternate: boolean;
+}
+
+export interface GameBuilding {
+  id: string;
+  display_name: string;
+  power_mw: number;
+}
+
+// UI state types
+export interface ResourceInput {
+  item_id: string;
+  display_name: string;
+  rate: number;
+}
+
+export type SolveMode = "resource_constrained" | "target_driven";
