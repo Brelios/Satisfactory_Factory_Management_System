@@ -21,13 +21,13 @@ const BELT_TIERS = [
 export default function Page() {
   const [mode, setMode] = useState<SolveMode>("resource_constrained");
   const [resources, setResources] = useState<ResourceInput[]>([
-    { item_id: "iron_ore", display_name: "Iron Ore", rate: 720 },
+    { item_id: "iron_ore", display_name: "Iron Ore", rate: 0 },
     { item_id: "copper_ore", display_name: "Copper Ore", rate: 0 },
     { item_id: "limestone", display_name: "Limestone", rate: 0 },
     { item_id: "coal", display_name: "Coal", rate: 0 },
   ]);
   const [targetItems, setTargetItems] = useState<string[]>(["modular_frame"]);
-  const [targetRates, setTargetRates] = useState<Record<string, number>>({ modular_frame: 10 });
+  const [targetRates, setTargetRates] = useState<Record<string, number>>({ modular_frame: 0 });
   const [unlockedAlts, setUnlockedAlts] = useState<string[]>([]);
   
   // Belt constraint controls
@@ -192,7 +192,7 @@ export default function Page() {
                         setTargetItems(newItems);
                         setTargetRates(prev => {
                           const newRates = { ...prev };
-                          newRates[e.target.value] = prev[item] || 10;
+                          newRates[e.target.value] = prev[item] || 0;
                           delete newRates[item];
                           return newRates;
                         });
@@ -205,9 +205,12 @@ export default function Page() {
                     {mode === 'target_driven' && (
                       <input 
                         type="number"
+                        min="0"
+                        placeholder="0"
                         className="w-20 bg-slate-800 border border-slate-700 rounded p-2 text-sm text-white text-right focus:border-sky-500 outline-none"
-                        value={targetRates[item] || 0}
-                        onChange={(e) => setTargetRates(prev => ({ ...prev, [item]: Number(e.target.value) }))}
+                        value={targetRates[item] ?? 0}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setTargetRates(prev => ({ ...prev, [item]: Math.max(0, Number(e.target.value)) }))}
                       />
                     )}
                   </div>
@@ -224,10 +227,13 @@ export default function Page() {
                     <label className="text-sm text-slate-300 capitalize">{res.display_name}</label>
                     <input 
                       type="number"
+                      min="0"
+                      placeholder="0"
                       className="w-24 bg-slate-800 border border-slate-700 rounded p-1.5 text-sm text-white text-right focus:border-sky-500 outline-none"
                       value={res.rate}
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => {
-                        const newRate = Number(e.target.value);
+                        const newRate = Math.max(0, Number(e.target.value));
                         setResources(resources.map(r => r.item_id === res.item_id ? { ...r, rate: newRate } : r));
                       }}
                     />
