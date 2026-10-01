@@ -180,11 +180,14 @@ class BlueprintGenerator:
 
             item_name = self.game_data.items[conn.item_id].display_name if conn.item_id in self.game_data.items else conn.item_id
 
+            belt_label = f"{conn.belt_count}× Mk.{conn.belt_tier} ({conn.rate:.1f}/m)" if conn.belt_count > 1 else f"{conn.rate:.1f}/m Mk.{conn.belt_tier}"
+            box_width = 110 if conn.belt_count > 1 else 90
+
             svg.append(f'''
             <g transform="translate({mid_x}, {mid_y})">
-                <rect x="-45" y="-14" width="90" height="28" fill="{self.bg_color}" rx="4" opacity="0.9" />
+                <rect x="{-box_width/2}" y="-14" width="{box_width}" height="28" fill="{self.bg_color}" rx="4" opacity="0.9" />
                 <text x="0" y="-2" fill="white" font-family="sans-serif" font-size="9" text-anchor="middle">{item_name}</text>
-                <text x="0" y="10" fill="#90CDF4" font-family="sans-serif" font-size="9" text-anchor="middle">{conn.rate:.1f}/min Mk.{conn.belt_tier}</text>
+                <text x="0" y="10" fill="#90CDF4" font-family="sans-serif" font-size="9" text-anchor="middle">{belt_label}</text>
             </g>
             ''')
 

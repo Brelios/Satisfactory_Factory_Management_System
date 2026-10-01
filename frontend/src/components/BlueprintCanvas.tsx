@@ -86,16 +86,31 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
 
     // Edges
     result.connections.forEach((conn, idx) => {
+      const isMultiBelt = conn.belt_count > 1;
+      const labelText = isMultiBelt
+        ? `${conn.item.replace(/_/g, " ")}\n${conn.belt_count}× Mk.${conn.belt_tier} (${conn.rate.toFixed(1)}/m total)`
+        : `${conn.item.replace(/_/g, " ")}\n${conn.rate.toFixed(1)}/m Mk.${conn.belt_tier}`;
+
       edges.push({
         id: `e-${conn.from_step}-${conn.to_step}-${idx}`,
         source: conn.from_step,
         target: conn.to_step,
         animated: true,
-        label: `${conn.item.replace(/_/g, " ")}\n${conn.rate.toFixed(1)}/m Mk.${conn.belt_tier}`,
-        labelStyle: { fill: "#1e293b", color: "white", fontSize: 10, fontFamily: "monospace" },
-        labelBgStyle: { fill: "#cbd5e1", color: "#cbd5e1" },
-        style: { strokeWidth: 1 + conn.belt_tier * 0.5, stroke: "#4A90D9" },
-        markerEnd: { type: MarkerType.ArrowClosed, color: "#4A90D9" },
+        label: labelText,
+        labelStyle: { 
+          fill: isMultiBelt ? "#0f172a" : "#1e293b", 
+          color: isMultiBelt ? "#0284c7" : "#0f172a", 
+          fontSize: 10, 
+          fontFamily: "monospace", 
+          fontWeight: isMultiBelt ? "bold" : "normal" 
+        },
+        labelBgStyle: { fill: isMultiBelt ? "#e0f2fe" : "#cbd5e1" },
+        style: { 
+          strokeWidth: isMultiBelt ? 2 + conn.belt_tier * 0.8 : 1 + conn.belt_tier * 0.5, 
+          stroke: isMultiBelt ? "#38bdf8" : "#4A90D9",
+          strokeDasharray: isMultiBelt ? "8,4" : undefined
+        },
+        markerEnd: { type: MarkerType.ArrowClosed, color: isMultiBelt ? "#38bdf8" : "#4A90D9" },
       });
     });
 

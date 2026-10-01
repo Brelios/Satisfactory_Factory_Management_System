@@ -28,7 +28,8 @@ class ProductionSolver:
         available_resources: dict[str, float],
         target_items: list[str],
         unlocked_alts: set[str] | None = None,
-        optimization: OptimizationGoal = OptimizationGoal.MAXIMIZE_OUTPUT
+        optimization: OptimizationGoal = OptimizationGoal.MAXIMIZE_OUTPUT,
+        max_belt_tier: int | None = None,
     ) -> SolverResult:
         """Maximize production of target items given resource limits."""
         graph_builder = RecipeGraphBuilder(self.game_data, unlocked_alts)
@@ -117,14 +118,15 @@ class ProductionSolver:
 
         machine_counts = {r_id: float(res.x[i]) for r_id, i in recipe_to_idx.items()}
         return self._build_solver_result(
-            machine_counts, graph, SolveMode.RESOURCE_CONSTRAINED, optimization
+            machine_counts, graph, SolveMode.RESOURCE_CONSTRAINED, optimization, max_belt_tier
         )
 
     def solve_target_driven(
         self,
         targets: dict[str, float],
         unlocked_alts: set[str] | None = None,
-        optimization: OptimizationGoal = OptimizationGoal.MAXIMIZE_OUTPUT
+        optimization: OptimizationGoal = OptimizationGoal.MAXIMIZE_OUTPUT,
+        max_belt_tier: int | None = None,
     ) -> SolverResult:
         """Calculate exact resources needed for target output rates.
         
@@ -215,7 +217,7 @@ class ProductionSolver:
 
         machine_counts = {r_id: float(res.x[i]) for r_id, i in recipe_to_idx.items()}
         return self._build_solver_result(
-            machine_counts, graph, SolveMode.TARGET_DRIVEN, optimization
+            machine_counts, graph, SolveMode.TARGET_DRIVEN, optimization, max_belt_tier
         )
 
     def solve_compare(
@@ -224,7 +226,8 @@ class ProductionSolver:
         targets: dict[str, float] | None = None,
         target_items: list[str] | None = None,
         unlocked_alts: set[str] | None = None,
-        optimization: OptimizationGoal = OptimizationGoal.MAXIMIZE_OUTPUT
+        optimization: OptimizationGoal = OptimizationGoal.MAXIMIZE_OUTPUT,
+        max_belt_tier: int | None = None,
     ) -> list[dict]:
         """Generate multiple blueprint variants using different recipe combos.
         
@@ -263,10 +266,10 @@ class ProductionSolver:
             # No choices — just return single result
             if mode == "resource_constrained":
                 result = self.solve_resource_constrained(
-                    available_resources, final_targets, unlocked_alts, optimization
+                    available_resources, final_targets, unlocked_alts, optimization, max_belt_tier
                 )
             else:
-                result = self.solve_target_driven(targets, unlocked_alts, optimization)
+                result = self.solve_target_driven(targets, unlocked_alts, optimization, max_belt_tier)
             return [{"result": result, "recipe_set": [], "label": "Default Recipes"}]
 
         choice_keys = list(items_with_choices.keys())
@@ -285,10 +288,10 @@ class ProductionSolver:
             try:
                 if mode == "resource_constrained":
                     result = self.solve_resource_constrained(
-                        available_resources, final_targets, alt_set, optimization
+                        available_resources, final_targets, alt_set, optimization, max_belt_tier
                     )
                 else:
-                    result = self.solve_target_driven(targets, alt_set, optimization)
+                    result = self.solve_target_driven(targets, alt_set, optimization, max_belt_tier)
 
                 if result.steps:  # Only include successful solves
                     # Build a human-readable label
@@ -323,7 +326,8 @@ class ProductionSolver:
         recipe_machines: dict[str, float],
         graph,
         mode: SolveMode,
-        optimization: OptimizationGoal
+        optimization: OptimizationGoal,
+        max_belt_tier: int | None = None,
     ) -> SolverResult:
 
         steps = []
@@ -387,13 +391,17 @@ class ProductionSolver:
                 v_in = graph.nodes[v]['recipe'].input_rate(item_id) * recipe_machines[v]
                 rate = min(u_out, v_in)
                 if rate > 1e-6:
-                    tier = select_belt_tier(rate, self.game_data.belt_speeds)
+                    tier, belt_count, rate_per_belt = select_belt_tier(
+                        rate, self.game_data.belt_speeds, max_belt_tier
+                    )
                     connections.append(BeltConnection(
                         from_step_id=u,
                         to_step_id=v,
                         item_id=item_id,
                         rate=rate,
-                        belt_tier=tier
+                        belt_tier=tier,
+                        belt_count=belt_count,
+                        rate_per_belt=rate_per_belt
                     ))
 
         for item_id in set(list(item_production.keys()) + list(item_consumption.keys())):

@@ -9,6 +9,7 @@ class SolveRequest(BaseModel):
     target_items: Optional[List[str]] = None
     unlocked_alts: List[str] = []
     optimization: str = "maximize_output"
+    max_belt_tier: Optional[int] = None
 
 
 class ProductionStepResponse(BaseModel):
@@ -29,6 +30,8 @@ class BeltConnectionResponse(BaseModel):
     item: str
     rate: float
     belt_tier: int
+    belt_count: int = 1
+    rate_per_belt: float = 0.0
 
 
 class SolveResponse(BaseModel):

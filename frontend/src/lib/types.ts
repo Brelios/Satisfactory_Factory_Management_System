@@ -9,6 +9,7 @@ export interface SolveRequest {
   target_items?: string[];
   unlocked_alts?: string[];
   optimization?: string;
+  max_belt_tier?: number;
 }
 
 export interface ProductionStep {
@@ -29,6 +30,8 @@ export interface BeltConnection {
   item: string;
   rate: number;
   belt_tier: number;
+  belt_count: number;
+  rate_per_belt: number;
 }
 
 export interface SolveResponse {
@@ -40,6 +43,25 @@ export interface SolveResponse {
   target_outputs: Record<string, number>;
   resource_usage: Record<string, number>;
   shopping_list: Record<string, number>;
+}
+
+export interface CompareVariant {
+  label: string;
+  recipe_set: string[];
+  total_machines: number;
+  total_power_mw: number;
+  target_outputs: Record<string, number>;
+  resource_usage: Record<string, number>;
+  shopping_list: Record<string, number>;
+  blueprint_svg: string;
+  steps: ProductionStep[];
+  connections: BeltConnection[];
+}
+
+export interface CompareResponse {
+  variants: CompareVariant[];
+  best_machines: string;
+  best_power: string;
 }
 
 export interface GameItem {
@@ -73,22 +95,3 @@ export interface ResourceInput {
 }
 
 export type SolveMode = "resource_constrained" | "target_driven";
-
-export interface CompareVariant {
-  label: string;
-  recipe_set: string[];
-  total_machines: number;
-  total_power_mw: number;
-  target_outputs: Record<string, number>;
-  resource_usage: Record<string, number>;
-  shopping_list: Record<string, number>;
-  blueprint_svg: string;
-  steps: ProductionStep[];
-  connections: BeltConnection[];
-}
-
-export interface CompareResponse {
-  variants: CompareVariant[];
-  best_machines: string;
-  best_power: string;
-}

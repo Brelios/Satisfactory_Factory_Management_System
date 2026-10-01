@@ -42,7 +42,9 @@ def _build_conn_responses(result) -> List[BeltConnectionResponse]:
         to_step=c.to_step_id,
         item=c.item_id,
         rate=c.rate,
-        belt_tier=c.belt_tier
+        belt_tier=c.belt_tier,
+        belt_count=c.belt_count,
+        rate_per_belt=c.rate_per_belt,
     ) for c in result.connections]
 
 
@@ -62,7 +64,8 @@ def solve_production(req: SolveRequest):
                 available_resources=req.resources,
                 target_items=req.target_items,
                 unlocked_alts=set(req.unlocked_alts) if req.unlocked_alts else None,
-                optimization=OptimizationGoal(req.optimization)
+                optimization=OptimizationGoal(req.optimization),
+                max_belt_tier=req.max_belt_tier,
             )
         elif req.mode == "target_driven":
             if not req.targets:
@@ -73,7 +76,8 @@ def solve_production(req: SolveRequest):
             result = solver.solve_target_driven(
                 targets=req.targets,
                 unlocked_alts=set(req.unlocked_alts) if req.unlocked_alts else None,
-                optimization=OptimizationGoal(req.optimization)
+                optimization=OptimizationGoal(req.optimization),
+                max_belt_tier=req.max_belt_tier,
             )
         else:
             raise HTTPException(status_code=400, detail="Invalid mode")
@@ -117,7 +121,8 @@ def solve_compare(req: SolveRequest):
             targets=req.targets,
             target_items=req.target_items,
             unlocked_alts=set(req.unlocked_alts) if req.unlocked_alts else None,
-            optimization=OptimizationGoal(req.optimization)
+            optimization=OptimizationGoal(req.optimization),
+            max_belt_tier=req.max_belt_tier,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Comparison error: {str(e)}")

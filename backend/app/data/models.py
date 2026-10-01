@@ -165,6 +165,8 @@ class BeltConnection:
     item_id: str              # what item flows on this belt
     rate: float               # items/min
     belt_tier: int            # 1-6 (Mk.1 through Mk.6)
+    belt_count: int = 1       # number of parallel belts if flow exceeds single belt capacity
+    rate_per_belt: float = 0.0 # throughput per individual belt line
 
 
 @dataclass

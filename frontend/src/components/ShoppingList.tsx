@@ -5,6 +5,19 @@ import type { SolveResponse } from "@/lib/types";
 export default function ShoppingList({ result }: { result: SolveResponse | null }) {
   if (!result) return null;
 
+  // Compute logistics breakdown
+  const beltSummary: Record<number, { single: number; parallelLines: number }> = {};
+  result.connections.forEach(c => {
+    if (!beltSummary[c.belt_tier]) {
+      beltSummary[c.belt_tier] = { single: 0, parallelLines: 0 };
+    }
+    if (c.belt_count > 1) {
+      beltSummary[c.belt_tier].parallelLines += c.belt_count;
+    } else {
+      beltSummary[c.belt_tier].single += 1;
+    }
+  });
+
   return (
     <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 space-y-6">
       <div>
@@ -54,6 +67,23 @@ export default function ShoppingList({ result }: { result: SolveResponse | null 
             <div key={building} className="flex justify-between items-center text-sm py-1 border-b border-slate-700/50 last:border-0">
               <span className="text-slate-400 capitalize">{building.replace(/_/g, ' ')}</span>
               <span className="text-white font-medium bg-slate-700 px-2 py-0.5 rounded">{count}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-slate-300 mb-2">Conveyor Logistics</h3>
+        <div className="space-y-1.5">
+          {Object.entries(beltSummary).map(([tier, stats]) => (
+            <div key={tier} className="flex justify-between items-center text-xs bg-slate-800 p-2 rounded border border-slate-700">
+              <span className="text-sky-400 font-semibold font-mono">Mk.{tier} Belts</span>
+              <div className="text-slate-300 font-mono">
+                {stats.single > 0 && <span>{stats.single} line{stats.single > 1 ? 's' : ''}</span>}
+                {stats.parallelLines > 0 && (
+                  <span className="text-amber-400 ml-1">({stats.parallelLines} parallel)</span>
+                )}
+              </div>
             </div>
           ))}
         </div>
