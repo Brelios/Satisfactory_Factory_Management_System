@@ -16,6 +16,7 @@ import ResourceNode from "./ResourceNode";
 import OutputNode from "./OutputNode";
 import SplitterNode from "./SplitterNode";
 import MergerNode from "./MergerNode";
+import ConveyorBridgeEdge from "./ConveyorBridgeEdge";
 
 interface BlueprintCanvasProps {
   result: SolveResponse | null;
@@ -29,6 +30,10 @@ const nodeTypes = {
   outputNode: OutputNode as any,
   splitterNode: SplitterNode as any,
   mergerNode: MergerNode as any,
+};
+
+const edgeTypes = {
+  conveyorBridge: ConveyorBridgeEdge as any,
 };
 
 export default function BlueprintCanvas({ result, isLoading, items }: BlueprintCanvasProps) {
@@ -106,10 +111,10 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
     });
 
     // Spacing constants designed to guarantee obstacle-free corridors
-    const COL_SPACING = 680; // Machine-to-machine horizontal pitch
+    const COL_SPACING = 720; // Machine-to-machine horizontal pitch
     const ROW_SPACING = 300; // Machine-to-machine vertical pitch
     const NODE_OFFSET_X = 400; // Offset after resource miners (col 0)
-    const SPLITTER_CORRIDOR_OFFSET = 330; // Position of splitters in the corridor between columns
+    const SPLITTER_CORRIDOR_OFFSET = 290; // Place splitters in parent's lane
 
     const maxRowsInAnyCol = Math.max(
       ...Object.values(columns).map(c => c.length),
@@ -157,8 +162,11 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
       });
     });
 
-    // 5. Build Conveyor Splitters & Straight Corridor Edges between Machine Steps
-    // Group outgoing connections by supplier step and item
+    // 5. Build Conveyor Splitters & Corridor Tracks
+    // Track vertical conduit track coordinates per corridor to prevent vertical line overlap
+    // and provide crossing coordinates for horizontal bridge jump arcs
+    const corridorVerticalTracks: Record<number, number[]> = {};
+
     const outgoingGroups: Record<string, typeof result.connections> = {};
     result.connections.forEach(conn => {
       const key = `${conn.from_step}__${conn.item}`;
@@ -166,29 +174,54 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
       outgoingGroups[key].push(conn);
     });
 
+    // Helper: assign dedicated vertical track in a column corridor
+    const allocateCorridorTrack = (colIdx: number): number => {
+      if (!corridorVerticalTracks[colIdx]) corridorVerticalTracks[colIdx] = [];
+      const trackBase = NODE_OFFSET_X + colIdx * COL_SPACING + 470;
+      const trackIdx = corridorVerticalTracks[colIdx].length;
+      const trackX = trackBase + (trackIdx % 6) * 32;
+      corridorVerticalTracks[colIdx].push(trackX);
+      return trackX;
+    };
+
+    // First pass: create splitters and determine vertical tracks
+    interface PendingConnection {
+      id: string;
+      source: string;
+      target: string;
+      sourceX: number;
+      sourceY: number;
+      targetX: number;
+      targetY: number;
+      turnX: number;
+      colIdx: number;
+      isMultiBelt: boolean;
+      beltTier: number;
+      edgeColor: string;
+      label: string;
+    }
+
+    const pendingConnections: PendingConnection[] = [];
+
     Object.entries(outgoingGroups).forEach(([key, conns]) => {
       const [fromStepId, itemId] = key.split("__");
       const fromPos = machinePositions[fromStepId];
       if (!fromPos) return;
 
+      const fromDepth = stepDepths[fromStepId] || 0;
       const edgeColor = getMaterialColor(itemId);
       const itemName = itemId.replace(/_/g, " ");
 
       if (conns.length > 1) {
-        // MULTI-BRANCH FEED -> Insert Conveyor Splitter in the corridor!
+        // MULTI-BRANCH FEED: Insert Conveyor Splitter in the parent's OWN horizontal lane!
         const totalRate = conns.reduce((sum, c) => sum + c.rate, 0);
         const maxTier = Math.max(...conns.map(c => c.belt_tier), 1);
         const splitterId = `splitter-${fromStepId}-${itemId}`;
 
-        // Compute average Y of the destination machines to place splitter centrally
-        const destYs = conns
-          .map(c => machinePositions[c.to_step]?.y)
-          .filter(y => y !== undefined) as number[];
-        const avgDestY = destYs.length ? destYs.reduce((a, b) => a + b, 0) / destYs.length : fromPos.y;
-        
-        // Splitter position: in the clear corridor between this column and the next
+        // CRITICAL FIX: Place splitter at parent's Y (+20px for center align)
+        // so it NEVER overlaps with other machines in other rows!
         const splitterX = fromPos.x + SPLITTER_CORRIDOR_OFFSET;
-        const splitterY = avgDestY + 25; // align near middle
+        const splitterY = fromPos.y + 20;
 
         nodes.push({
           id: splitterId,
@@ -202,50 +235,61 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
           },
         });
 
-        // Machine -> Splitter (clean horizontal line into splitter)
+        // Machine -> Splitter is a 100% STRAIGHT horizontal line in its own lane
         edges.push({
           id: `e-${fromStepId}-${splitterId}`,
           source: fromStepId,
           target: splitterId,
-          type: "smoothstep",
+          type: "conveyorBridge",
           animated: true,
           label: `${itemName} • ${totalRate.toFixed(0)}/m (Mk.${maxTier})`,
-          labelStyle: { fill: "#f8fafc", fontSize: 9.5, fontFamily: "monospace", fontWeight: 600 },
-          labelBgStyle: { fill: "#0f172a", stroke: edgeColor, strokeWidth: 1.5, rx: 6, ry: 6 },
-          labelBgPadding: [6, 4],
-          style: { strokeWidth: 2.2, stroke: edgeColor },
+          data: {
+            turnX: splitterX,
+            jumps: [],
+            isMultiBelt: false,
+            beltTier: maxTier,
+            edgeColor,
+          },
           markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor },
         });
 
-        // Splitter -> each Destination Machine
+        // From Splitter -> each Destination Machine
         conns.forEach((conn, cIdx) => {
+          const destPos = machinePositions[conn.to_step];
+          const destDepth = stepDepths[conn.to_step] ?? fromDepth + 1;
+          const turnX = allocateCorridorTrack(fromDepth);
+
           const feedDesc = conn.feed_description
             ? conn.feed_description.replace("Feeds ", "Feeds: ").replace(" operating normally", "").replace(" underclocked", "")
             : `${conn.rate.toFixed(0)}/m`;
 
-          edges.push({
+          pendingConnections.push({
             id: `e-${splitterId}-${conn.to_step}-${cIdx}`,
             source: splitterId,
             target: conn.to_step,
-            type: "smoothstep",
-            animated: true,
+            sourceX: splitterX + 130, // splitter right edge
+            sourceY: splitterY + 32,  // splitter vertical center
+            targetX: destPos ? destPos.x : splitterX + 300,
+            targetY: destPos ? destPos.y + 60 : splitterY,
+            turnX,
+            colIdx: fromDepth,
+            isMultiBelt: conn.belt_count > 1,
+            beltTier: conn.belt_tier,
+            edgeColor,
             label: `↳ ${conn.rate.toFixed(0)}/m (${feedDesc})`,
-            labelStyle: { fill: "#fef08a", fontSize: 9, fontFamily: "monospace", fontWeight: 500 },
-            labelBgStyle: { fill: "#0f172a", stroke: edgeColor, strokeWidth: 1.2, rx: 5, ry: 5 },
-            labelBgPadding: [6, 3],
-            style: { strokeWidth: 1.8, stroke: edgeColor },
-            markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor },
           });
         });
 
       } else {
-        // SINGLE BRANCH FEED -> Direct smoothstep conduit
+        // SINGLE BRANCH FEED: Direct conduit with dedicated corridor turn
         const conn = conns[0];
+        const destPos = machinePositions[conn.to_step];
+        const turnX = allocateCorridorTrack(fromDepth);
         const isMultiBelt = conn.belt_count > 1;
         const beltInfo = isMultiBelt
           ? `${conn.belt_count}× Mk.${conn.belt_tier} (${conn.rate_per_belt.toFixed(0)}/m ea)`
           : `Mk.${conn.belt_tier} (${conn.rate.toFixed(0)}/m)`;
-        
+
         const feedShort = conn.feed_description
           ? conn.feed_description.replace("Feeds ", "Feeds: ").replace(" operating normally", "").replace(" underclocked", "")
           : "";
@@ -254,24 +298,46 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
           ? `${itemName} • ${beltInfo}\n${feedShort}`
           : `${itemName} • ${beltInfo}`;
 
-        edges.push({
+        pendingConnections.push({
           id: `e-${conn.from_step}-${conn.to_step}`,
           source: conn.from_step,
           target: conn.to_step,
-          type: "smoothstep",
-          animated: true,
+          sourceX: fromPos.x + 220,
+          sourceY: fromPos.y + 60,
+          targetX: destPos ? destPos.x : fromPos.x + 300,
+          targetY: destPos ? destPos.y + 60 : fromPos.y + 60,
+          turnX,
+          colIdx: fromDepth,
+          isMultiBelt,
+          beltTier: conn.belt_tier,
+          edgeColor,
           label: labelText,
-          labelStyle: { fill: "#f8fafc", fontSize: 9.5, fontFamily: "monospace", fontWeight: 500 },
-          labelBgStyle: { fill: "#0f172a", stroke: edgeColor, strokeWidth: 1.5, rx: 6, ry: 6 },
-          labelBgPadding: [8, 5],
-          style: { 
-            strokeWidth: isMultiBelt ? 2.5 + conn.belt_tier * 0.3 : 1.8 + conn.belt_tier * 0.2, 
-            stroke: edgeColor,
-            strokeDasharray: isMultiBelt ? "8,4" : undefined 
-          },
-          markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor },
         });
       }
+    });
+
+    // Second pass: inject jump coordinates for horizontal segments crossing vertical tracks
+    pendingConnections.forEach(pc => {
+      // Find all vertical tracks in this corridor that this horizontal line crosses
+      const corridorTracks = corridorVerticalTracks[pc.colIdx] || [];
+      const crossingTracks = corridorTracks.filter(tx => tx !== pc.turnX);
+
+      edges.push({
+        id: pc.id,
+        source: pc.source,
+        target: pc.target,
+        type: "conveyorBridge",
+        animated: true,
+        label: pc.label,
+        data: {
+          turnX: pc.turnX,
+          jumps: crossingTracks,
+          isMultiBelt: pc.isMultiBelt,
+          beltTier: pc.beltTier,
+          edgeColor: pc.edgeColor,
+        },
+        markerEnd: { type: MarkerType.ArrowClosed, color: pc.edgeColor },
+      });
     });
 
     // 6. Resource Input Miners & Splitters (Column 0, left)
@@ -290,21 +356,16 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
         data: { label: item, rate, color: "#f59e0b" },
       });
 
-      // Find all machine steps consuming this resource
       const consumingSteps = result.steps.filter(step => step.input_rates[item]);
 
       if (consumingSteps.length > 1) {
-        // Resource feeds multiple lines -> insert a Conveyor Splitter!
+        // Resource feeds multiple lines -> insert Splitter in resource's OWN lane!
         const splitterId = `res-splitter-${item}`;
-        const destYs = consumingSteps
-          .map(s => machinePositions[s.step_id]?.y)
-          .filter(y => y !== undefined) as number[];
-        const avgDestY = destYs.length ? destYs.reduce((a, b) => a + b, 0) / destYs.length : y;
 
         nodes.push({
           id: splitterId,
           type: "splitterNode",
-          position: { x: 230, y: avgDestY + 25 },
+          position: { x: 220, y: y + 20 },
           data: {
             item,
             totalIn: rate,
@@ -313,38 +374,48 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
           },
         });
 
-        // Miner -> Splitter
+        // Miner -> Splitter (straight horizontal)
         edges.push({
           id: `e-${resId}-${splitterId}`,
           source: resId,
           target: splitterId,
-          type: "smoothstep",
+          type: "conveyorBridge",
           animated: true,
           label: `${item.replace(/_/g, " ")} • ${rate.toFixed(0)}/m`,
-          labelStyle: { fill: "#f8fafc", fontSize: 9.5, fontFamily: "monospace", fontWeight: 600 },
-          labelBgStyle: { fill: "#0f172a", stroke: "#f59e0b", strokeWidth: 1.5, rx: 6, ry: 6 },
-          labelBgPadding: [6, 4],
-          style: { strokeWidth: 2.2, stroke: "#f59e0b", strokeDasharray: "6,3" },
+          data: {
+            turnX: 220,
+            jumps: [],
+            isMultiBelt: false,
+            beltTier: 3,
+            edgeColor: "#f59e0b",
+          },
           markerEnd: { type: MarkerType.ArrowClosed, color: "#f59e0b" },
         });
 
-        // Splitter -> each Consuming Step
+        // Splitter -> each Consuming Step with bridge jumper
         consumingSteps.forEach((step, sIdx) => {
           const consumeRate = step.input_rates[item];
+          const destPos = machinePositions[step.step_id];
+          const turnX = 350 + (sIdx % 3) * 20;
+
           edges.push({
             id: `e-${splitterId}-${step.step_id}-${sIdx}`,
             source: splitterId,
             target: step.step_id,
-            type: "smoothstep",
+            type: "conveyorBridge",
             animated: true,
             label: `↳ ${consumeRate.toFixed(0)}/m`,
-            labelStyle: { fill: "#fef08a", fontSize: 9, fontFamily: "monospace" },
-            labelBgStyle: { fill: "#0f172a", stroke: "#f59e0b", strokeWidth: 1.2, rx: 5, ry: 5 },
-            labelBgPadding: [6, 3],
-            style: { strokeWidth: 1.8, stroke: "#f59e0b" },
+            data: {
+              turnX,
+              jumps: [],
+              isMultiBelt: false,
+              beltTier: 3,
+              edgeColor: "#f59e0b",
+            },
             markerEnd: { type: MarkerType.ArrowClosed, color: "#f59e0b" },
           });
         });
+
       } else if (consumingSteps.length === 1) {
         const step = consumingSteps[0];
         const consumeRate = step.input_rates[item];
@@ -352,13 +423,16 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
           id: `e-${resId}-${step.step_id}`,
           source: resId,
           target: step.step_id,
-          type: "smoothstep",
+          type: "conveyorBridge",
           animated: true,
           label: `${item.replace(/_/g, " ")} • ${consumeRate.toFixed(0)}/m`,
-          labelStyle: { fill: "#f8fafc", fontSize: 9.5, fontFamily: "monospace" },
-          labelBgStyle: { fill: "#0f172a", stroke: "#f59e0b", strokeWidth: 1.5, rx: 6, ry: 6 },
-          labelBgPadding: [8, 5],
-          style: { strokeWidth: 2, stroke: "#f59e0b", strokeDasharray: "6,3" },
+          data: {
+            turnX: 260,
+            jumps: [],
+            isMultiBelt: false,
+            beltTier: 3,
+            edgeColor: "#f59e0b",
+          },
           markerEnd: { type: MarkerType.ArrowClosed, color: "#f59e0b" },
         });
       }
@@ -382,7 +456,6 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
         data: { label: item, rate },
       });
 
-      // Connect producing machine steps directly to output node
       result.steps.forEach(step => {
         if (step.output_rates[item]) {
           const prodRate = step.output_rates[item];
@@ -390,13 +463,16 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
             id: `e-${step.step_id}-${id}`,
             source: step.step_id,
             target: id,
-            type: "smoothstep",
+            type: "conveyorBridge",
             animated: true,
             label: `✓ ${item.replace(/_/g, " ")} • ${prodRate.toFixed(0)}/m`,
-            labelStyle: { fill: "#ecfdf5", fontSize: 9.5, fontFamily: "monospace", fontWeight: 600 },
-            labelBgStyle: { fill: "#0f172a", stroke: "#10b981", strokeWidth: 1.5, rx: 6, ry: 6 },
-            labelBgPadding: [8, 5],
-            style: { strokeWidth: 2.2, stroke: "#10b981" },
+            data: {
+              turnX: outX - 60,
+              jumps: [],
+              isMultiBelt: false,
+              beltTier: 3,
+              edgeColor: "#10b981",
+            },
             markerEnd: { type: MarkerType.ArrowClosed, color: "#10b981" },
           });
         }
@@ -430,6 +506,7 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
         nodes={initialNodes}
         edges={initialEdges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         minZoom={0.15}
         maxZoom={2.5}
