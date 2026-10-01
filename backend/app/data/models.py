@@ -155,6 +155,9 @@ class ProductionStep:
     input_rates: dict[str, float]   # item_id -> total items/min consumed
     output_rates: dict[str, float]  # item_id -> total items/min produced
     power_draw: float         # total MW for all machines at their clock speeds
+    normal_machine_count: int = 0         # machines operating normally at 100%
+    underclocked_machine_count: int = 0   # boundary underclocked machines (0 or 1)
+    underclock_clock_speed: float = 100.0 # clock speed % of the underclocked machine
 
 
 @dataclass
@@ -167,6 +170,10 @@ class BeltConnection:
     belt_tier: int            # 1-6 (Mk.1 through Mk.6)
     belt_count: int = 1       # number of parallel belts if flow exceeds single belt capacity
     rate_per_belt: float = 0.0 # throughput per individual belt line
+    feeds_normal_machines: int = 0        # 100% machines fed by this belt
+    feeds_underclocked_machines: int = 0  # 0 or 1 underclocked machine fed by this belt
+    feeds_underclock_clock: float = 100.0 # clock % of underclocked machine fed by this belt
+    feed_description: str = ""            # e.g. "Feeds 3 machines @ 100% + 1 machine @ 33.3%"
 
 
 @dataclass

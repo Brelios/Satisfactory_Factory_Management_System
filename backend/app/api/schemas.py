@@ -22,6 +22,9 @@ class ProductionStepResponse(BaseModel):
     input_rates: Dict[str, float]
     output_rates: Dict[str, float]
     power_mw: float
+    normal_machine_count: int = 0
+    underclocked_machine_count: int = 0
+    underclock_clock_speed: float = 100.0
 
 
 class BeltConnectionResponse(BaseModel):
@@ -32,6 +35,10 @@ class BeltConnectionResponse(BaseModel):
     belt_tier: int
     belt_count: int = 1
     rate_per_belt: float = 0.0
+    feeds_normal_machines: int = 0
+    feeds_underclocked_machines: int = 0
+    feeds_underclock_clock: float = 100.0
+    feed_description: str = ""
 
 
 class SolveResponse(BaseModel):

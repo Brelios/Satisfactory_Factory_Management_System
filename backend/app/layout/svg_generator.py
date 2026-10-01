@@ -181,15 +181,18 @@ class BlueprintGenerator:
             item_name = self.game_data.items[conn.item_id].display_name if conn.item_id in self.game_data.items else conn.item_id
 
             belt_label = f"{conn.belt_count}× Mk.{conn.belt_tier} ({conn.rate:.1f}/m)" if conn.belt_count > 1 else f"{conn.rate:.1f}/m Mk.{conn.belt_tier}"
-            box_width = 110 if conn.belt_count > 1 else 90
+            feed_info = conn.feed_description if conn.feed_description else ""
+            box_width = max(140, len(feed_info) * 6) if feed_info else (110 if conn.belt_count > 1 else 90)
+            box_height = 36 if feed_info else 28
 
             svg.append(f'''
             <g transform="translate({mid_x}, {mid_y})">
-                <rect x="{-box_width/2}" y="-14" width="{box_width}" height="28" fill="{self.bg_color}" rx="4" opacity="0.9" />
-                <text x="0" y="-2" fill="white" font-family="sans-serif" font-size="9" text-anchor="middle">{item_name}</text>
-                <text x="0" y="10" fill="#90CDF4" font-family="sans-serif" font-size="9" text-anchor="middle">{belt_label}</text>
-            </g>
+                <rect x="{-box_width/2}" y="{-box_height/2}" width="{box_width}" height="{box_height}" fill="{self.bg_color}" stroke="{belt_color}" stroke-width="1" rx="4" opacity="0.95" />
+                <text x="0" y="{-box_height/2 + 11}" fill="white" font-family="sans-serif" font-size="9" text-anchor="middle">{item_name}: {belt_label}</text>
             ''')
+            if feed_info:
+                svg.append(f'<text x="0" y="{-box_height/2 + 25}" fill="#F6E05E" font-family="sans-serif" font-size="8" text-anchor="middle">{feed_info}</text>')
+            svg.append('</g>')
 
         # Draw Resource Input Nodes
         for res_id, (rx, ry) in resource_positions.items():
@@ -232,30 +235,35 @@ class BlueprintGenerator:
             svg.append(f'''
             <g transform="translate({x}, {y})">
                 <rect width="{self.node_width}" height="{self.node_height}" fill="#2D3748" stroke="{border_color}" stroke-width="2" rx="10" />
-                <rect width="{self.node_width}" height="35" fill="{border_color}" rx="10" opacity="0.15" />
+                <rect width="{self.node_width}" height="32" fill="{border_color}" rx="10" opacity="0.15" />
 
-                <circle cx="22" cy="18" r="10" fill="{border_color}" opacity="0.8" />
-                <text x="40" y="22" fill="white" font-family="sans-serif" font-size="13" font-weight="bold">{step.recipe.display_name}</text>
+                <circle cx="20" cy="16" r="8" fill="{border_color}" opacity="0.8" />
+                <text x="35" y="20" fill="white" font-family="sans-serif" font-size="12" font-weight="bold">{step.recipe.display_name}</text>
 
-                <text x="15" y="55" fill="#CBD5E0" font-family="sans-serif" font-size="12">{step.machine_count}× {step.building.display_name}</text>
+                <text x="12" y="50" fill="#CBD5E0" font-family="sans-serif" font-size="11" font-weight="bold">{step.building.display_name} &times; {step.machine_count}</text>
             ''')
 
+            # Machine operating breakdown
+            if step.underclocked_machine_count > 0:
+                svg.append(f'''
+                <text x="12" y="65" fill="#A0AEC0" font-family="sans-serif" font-size="10">&bull; {step.normal_machine_count}&times; @ 100% (Normal)</text>
+                <text x="12" y="78" fill="#F6E05E" font-family="sans-serif" font-size="10" font-weight="bold">&bull; 1&times; @ {step.underclock_clock_speed:.1f}% (Underclocked)</text>
+                ''')
+                y_out = 94
+            else:
+                svg.append(f'''
+                <text x="12" y="65" fill="#48BB78" font-family="sans-serif" font-size="10">&bull; {step.machine_count}&times; @ 100% (Normal)</text>
+                ''')
+                y_out = 82
+
             # Output rates — show each item separately
-            y_out = 75
             for item_id, rate in step.output_rates.items():
                 item_name = self.game_data.items[item_id].display_name if item_id in self.game_data.items else item_id
-                svg.append(f'<text x="15" y="{y_out}" fill="#90CDF4" font-family="monospace" font-size="11" font-weight="bold">{item_name}: {rate:.1f}/min</text>')
-                y_out += 15
-
-            # Clock speed
-            clock_display = round(step.clock_speed)
-            if abs(step.clock_speed - 100.0) > 0.5:
-                svg.append(f'<text x="15" y="{min(y_out + 5, self.node_height - 8)}" fill="#F6E05E" font-family="sans-serif" font-size="10">⏱ {clock_display}%</text>')
-            else:
-                svg.append(f'<text x="15" y="{min(y_out + 5, self.node_height - 8)}" fill="#A0AEC0" font-family="sans-serif" font-size="10">⏱ 100%</text>')
+                svg.append(f'<text x="12" y="{y_out}" fill="#90CDF4" font-family="monospace" font-size="10" font-weight="bold">Out: {item_name} {rate:.1f}/m</text>')
+                y_out += 14
 
             # Power badge
-            svg.append(f'<text x="{self.node_width - 12}" y="{self.node_height - 10}" fill="#A0AEC0" font-family="sans-serif" font-size="9" text-anchor="end">⚡{step.power_draw:.0f}MW</text>')
+            svg.append(f'<text x="{self.node_width - 10}" y="{self.node_height - 8}" fill="#A0AEC0" font-family="sans-serif" font-size="9" text-anchor="end">⚡{step.power_draw:.0f}MW</text>')
 
             svg.append('</g>')
 

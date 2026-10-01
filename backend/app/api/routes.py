@@ -32,7 +32,10 @@ def _build_step_responses(result) -> List[ProductionStepResponse]:
         clock_speed=s.clock_speed,
         input_rates=s.input_rates,
         output_rates=s.output_rates,
-        power_mw=s.power_draw
+        power_mw=s.power_draw,
+        normal_machine_count=s.normal_machine_count,
+        underclocked_machine_count=s.underclocked_machine_count,
+        underclock_clock_speed=s.underclock_clock_speed,
     ) for s in result.steps]
 
 
@@ -45,6 +48,10 @@ def _build_conn_responses(result) -> List[BeltConnectionResponse]:
         belt_tier=c.belt_tier,
         belt_count=c.belt_count,
         rate_per_belt=c.rate_per_belt,
+        feeds_normal_machines=c.feeds_normal_machines,
+        feeds_underclocked_machines=c.feeds_underclocked_machines,
+        feeds_underclock_clock=c.feeds_underclock_clock,
+        feed_description=c.feed_description,
     ) for c in result.connections]
 
 

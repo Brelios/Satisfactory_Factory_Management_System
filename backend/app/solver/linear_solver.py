@@ -370,6 +370,16 @@ class ProductionSolver:
             for k, v in out_rates.items():
                 item_production[k] = item_production.get(k, 0.0) + v
 
+            # Machine operating breakdown
+            if abs(clock - 100.0) < 0.05:
+                normal_machines = actual_count
+                underclocked_machines = 0
+                underclock_clock = 100.0
+            else:
+                normal_machines = max(0, actual_count - 1)
+                underclocked_machines = 1
+                underclock_clock = round(clock, 1)
+
             steps.append(ProductionStep(
                 step_id=r_id,
                 recipe_id=r_id,
@@ -381,7 +391,10 @@ class ProductionSolver:
                 clock_speed=clock,
                 input_rates=in_rates,
                 output_rates=out_rates,
-                power_draw=power
+                power_draw=power,
+                normal_machine_count=normal_machines,
+                underclocked_machine_count=underclocked_machines,
+                underclock_clock_speed=underclock_clock,
             ))
 
         for u, v, data in graph.edges(data=True):
@@ -394,6 +407,33 @@ class ProductionSolver:
                     tier, belt_count, rate_per_belt = select_belt_tier(
                         rate, self.game_data.belt_speeds, max_belt_tier
                     )
+
+                    # Calculate machine feeding distribution for this belt
+                    v_recipe = graph.nodes[v]['recipe']
+                    nominal_consume = v_recipe.input_rate(item_id)
+                    if nominal_consume > 1e-6:
+                        machines_fed = rate / nominal_consume
+                        rounded_fed = round(machines_fed)
+                        if abs(machines_fed - rounded_fed) < 0.005:
+                            feeds_normal = rounded_fed
+                            feeds_under = 0
+                            feeds_clock = 100.0
+                            feed_desc = f"Feeds {feeds_normal} machines @ 100%"
+                        else:
+                            feeds_normal = math.floor(machines_fed)
+                            feeds_under = 1
+                            rem = machines_fed - feeds_normal
+                            feeds_clock = round(rem * 100.0, 1)
+                            if feeds_normal > 0:
+                                feed_desc = f"Feeds {feeds_normal} machines @ 100% + 1 machine @ {feeds_clock:.1f}%"
+                            else:
+                                feed_desc = f"Feeds 1 machine @ {feeds_clock:.1f}%"
+                    else:
+                        feeds_normal = 0
+                        feeds_under = 0
+                        feeds_clock = 100.0
+                        feed_desc = ""
+
                     connections.append(BeltConnection(
                         from_step_id=u,
                         to_step_id=v,
@@ -401,7 +441,11 @@ class ProductionSolver:
                         rate=rate,
                         belt_tier=tier,
                         belt_count=belt_count,
-                        rate_per_belt=rate_per_belt
+                        rate_per_belt=rate_per_belt,
+                        feeds_normal_machines=feeds_normal,
+                        feeds_underclocked_machines=feeds_under,
+                        feeds_underclock_clock=feeds_clock,
+                        feed_description=feed_desc
                     ))
 
         for item_id in set(list(item_production.keys()) + list(item_consumption.keys())):

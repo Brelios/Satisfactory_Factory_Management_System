@@ -22,6 +22,9 @@ export interface ProductionStep {
   input_rates: Record<string, number>;
   output_rates: Record<string, number>;
   power_mw: number;
+  normal_machine_count: number;
+  underclocked_machine_count: number;
+  underclock_clock_speed: number;
 }
 
 export interface BeltConnection {
@@ -32,6 +35,10 @@ export interface BeltConnection {
   belt_tier: number;
   belt_count: number;
   rate_per_belt: number;
+  feeds_normal_machines: number;
+  feeds_underclocked_machines: number;
+  feeds_underclock_clock: number;
+  feed_description: string;
 }
 
 export interface SolveResponse {

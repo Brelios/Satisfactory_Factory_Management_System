@@ -80,6 +80,9 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
           powerMw: step.power_mw,
           chainColor: "#f59e0b", // default color
           recipeId: step.recipe_id,
+          normalMachineCount: step.normal_machine_count,
+          underclockedMachineCount: step.underclocked_machine_count,
+          underclockClockSpeed: step.underclock_clock_speed,
         },
       });
     });
@@ -87,9 +90,10 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
     // Edges
     result.connections.forEach((conn, idx) => {
       const isMultiBelt = conn.belt_count > 1;
+      const feedText = conn.feed_description ? `\n↳ ${conn.feed_description}` : "";
       const labelText = isMultiBelt
-        ? `${conn.item.replace(/_/g, " ")}\n${conn.belt_count}× Mk.${conn.belt_tier} (${conn.rate.toFixed(1)}/m total)`
-        : `${conn.item.replace(/_/g, " ")}\n${conn.rate.toFixed(1)}/m Mk.${conn.belt_tier}`;
+        ? `${conn.item.replace(/_/g, " ")} (${conn.belt_count}× Mk.${conn.belt_tier} @ ${conn.rate_per_belt.toFixed(1)}/m ea)${feedText}`
+        : `${conn.item.replace(/_/g, " ")} (${conn.rate.toFixed(1)}/m Mk.${conn.belt_tier})${feedText}`;
 
       edges.push({
         id: `e-${conn.from_step}-${conn.to_step}-${idx}`,
@@ -98,15 +102,15 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
         animated: true,
         label: labelText,
         labelStyle: { 
-          fill: isMultiBelt ? "#0f172a" : "#1e293b", 
-          color: isMultiBelt ? "#0284c7" : "#0f172a", 
-          fontSize: 10, 
+          fill: "#0f172a", 
+          color: "#0f172a", 
+          fontSize: 9, 
           fontFamily: "monospace", 
           fontWeight: isMultiBelt ? "bold" : "normal" 
         },
-        labelBgStyle: { fill: isMultiBelt ? "#e0f2fe" : "#cbd5e1" },
+        labelBgStyle: { fill: isMultiBelt ? "#e0f2fe" : "#f1f5f9" },
         style: { 
-          strokeWidth: isMultiBelt ? 2 + conn.belt_tier * 0.8 : 1 + conn.belt_tier * 0.5, 
+          strokeWidth: isMultiBelt ? 2 + conn.belt_tier * 0.8 : 1.5 + conn.belt_tier * 0.5, 
           stroke: isMultiBelt ? "#38bdf8" : "#4A90D9",
           strokeDasharray: isMultiBelt ? "8,4" : undefined
         },
