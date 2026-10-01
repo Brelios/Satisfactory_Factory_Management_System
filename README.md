@@ -1,5 +1,7 @@
 # 🏭 Satisfactory Factory Management System
 
+Deployment- https://satisfactoryfactorymanagementsystem.vercel.app/
+
 A mathematical production solver and interactive visual blueprint generator for **Satisfactory**. Input your available mining resource rates, and the system computes the exact, mathematically optimal factory layout — machine counts, recipes, clock speeds, belt tiers, and power requirements — then renders it as an engineering schematic blueprint.
 
 ---
