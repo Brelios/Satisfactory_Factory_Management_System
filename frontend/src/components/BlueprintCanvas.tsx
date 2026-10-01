@@ -14,6 +14,8 @@ import type { SolveResponse, GameItem } from "@/lib/types";
 import MachineNode from "./MachineNode";
 import ResourceNode from "./ResourceNode";
 import OutputNode from "./OutputNode";
+import SplitterNode from "./SplitterNode";
+import MergerNode from "./MergerNode";
 
 interface BlueprintCanvasProps {
   result: SolveResponse | null;
@@ -25,6 +27,8 @@ const nodeTypes = {
   machineNode: MachineNode as any,
   resourceNode: ResourceNode as any,
   outputNode: OutputNode as any,
+  splitterNode: SplitterNode as any,
+  mergerNode: MergerNode as any,
 };
 
 export default function BlueprintCanvas({ result, isLoading, items }: BlueprintCanvasProps) {
@@ -34,13 +38,21 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
     const nodes: Node[] = [];
     const edges: Edge[] = [];
 
-    // 1. Calculate topological depth (column) for each step
+    // Helper: color code by material family
+    const getMaterialColor = (itemId: string): string => {
+      const lid = itemId.toLowerCase();
+      if (lid.includes("steel") || lid.includes("pipe") || lid.includes("beam")) return "#94a3b8"; // Steel slate
+      if (lid.includes("copper") || lid.includes("wire") || lid.includes("cable")) return "#fb923c"; // Copper orange
+      if (lid.includes("iron") || lid.includes("plate") || lid.includes("rod") || lid.includes("screw") || lid.includes("frame")) return "#fbbf24"; // Iron amber
+      return "#38bdf8"; // Sky default
+    };
+
+    // 1. Calculate topological depth (column index) for each machine step
     const stepDepths: Record<string, number> = {};
     for (const step of result.steps) {
       stepDepths[step.step_id] = 0;
     }
 
-    // Relaxation loop to find longest path from raw inputs
     let changed = true;
     let iterations = 0;
     while (changed && iterations < 50) {
@@ -66,20 +78,14 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
     }
 
     const sortedColKeys = Object.keys(columns).map(Number).sort((a, b) => a - b);
-    const maxDepth = sortedColKeys.length ? Math.max(...sortedColKeys) : 0;
 
-    // 3. Hierarchical barycentric row sorting to align connected steps in straight horizontal lines
-    // Track row index (0, 1, 2...) for each step
+    // 3. Hierarchical barycentric row sorting to align connected machines in straight horizontal lines
     const stepRowIndex: Record<string, number> = {};
-
     sortedColKeys.forEach((colIdx) => {
       const stepIdsInCol = columns[colIdx];
-
       if (colIdx === 0) {
-        // First column: stable sort by recipe name
         stepIdsInCol.sort((a, b) => a.localeCompare(b));
       } else {
-        // Subsequent columns: sort by average row index of incoming suppliers
         stepIdsInCol.sort((stepA, stepB) => {
           const getAvgSupplierRow = (stepId: string) => {
             const incoming = result.connections.filter(c => c.to_step === stepId);
@@ -90,7 +96,6 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
             if (!supplierRows.length) return 999;
             return supplierRows.reduce((sum, r) => sum + r, 0) / supplierRows.length;
           };
-
           return getAvgSupplierRow(stepA) - getAvgSupplierRow(stepB);
         });
       }
@@ -100,12 +105,12 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
       });
     });
 
-    // Dimensions & Spacing
-    const COL_SPACING = 560; // Wide horizontal runway between columns
-    const ROW_SPACING = 270; // Clear vertical clearance between stacked rows
-    const NODE_OFFSET_X = 360; // Offset after resource nodes (col 0)
+    // Spacing constants designed to guarantee obstacle-free corridors
+    const COL_SPACING = 680; // Machine-to-machine horizontal pitch
+    const ROW_SPACING = 300; // Machine-to-machine vertical pitch
+    const NODE_OFFSET_X = 400; // Offset after resource miners (col 0)
+    const SPLITTER_CORRIDOR_OFFSET = 330; // Position of splitters in the corridor between columns
 
-    // Find the max rows across all columns for vertical centering
     const maxRowsInAnyCol = Math.max(
       ...Object.values(columns).map(c => c.length),
       Object.keys(result.resource_usage).length,
@@ -113,13 +118,13 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
       1
     );
 
-    // 4. Position Machine Nodes
+    // 4. Place Machine Nodes
     const stepLookup = new Map(result.steps.map(s => [s.step_id, s]));
+    const machinePositions: Record<string, { x: number; y: number }> = {};
 
     sortedColKeys.forEach((colIdx) => {
       const stepIdsInCol = columns[colIdx];
       const colHeight = stepIdsInCol.length;
-      // Vertically center column relative to the diagram height
       const yOffset = ((maxRowsInAnyCol - colHeight) * ROW_SPACING) / 2;
 
       stepIdsInCol.forEach((stepId, rowIdx) => {
@@ -128,17 +133,7 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
 
         const x = NODE_OFFSET_X + colIdx * COL_SPACING;
         const y = yOffset + rowIdx * ROW_SPACING;
-
-        // Color coding by material family
-        let chainColor = "#4A90D9";
-        const idLower = stepId.toLowerCase();
-        if (idLower.includes("steel") || idLower.includes("pipe") || idLower.includes("beam")) {
-          chainColor = "#94a3b8"; // Steel slate
-        } else if (idLower.includes("copper") || idLower.includes("wire") || idLower.includes("cable")) {
-          chainColor = "#f97316"; // Copper orange
-        } else if (idLower.includes("iron") || idLower.includes("plate") || idLower.includes("rod") || idLower.includes("screw") || idLower.includes("frame")) {
-          chainColor = "#f59e0b"; // Iron amber
-        }
+        machinePositions[step.step_id] = { x, y };
 
         nodes.push({
           id: step.step_id,
@@ -152,7 +147,7 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
             inputRates: step.input_rates,
             outputRates: step.output_rates,
             powerMw: step.power_mw,
-            chainColor,
+            chainColor: getMaterialColor(step.step_id),
             recipeId: step.recipe_id,
             normalMachineCount: step.normal_machine_count,
             underclockedMachineCount: step.underclocked_machine_count,
@@ -162,106 +157,217 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
       });
     });
 
-    // 5. Build Smoothstep Conduit Edges between Machine Steps
-    result.connections.forEach((conn, idx) => {
-      const isMultiBelt = conn.belt_count > 1;
-      
-      // Clean, compact label: Line 1 = Item & Belt, Line 2 = Machine Feed
-      const itemName = conn.item.replace(/_/g, " ");
-      const beltInfo = isMultiBelt
-        ? `${conn.belt_count}× Mk.${conn.belt_tier} (${conn.rate_per_belt.toFixed(0)}/m ea)`
-        : `Mk.${conn.belt_tier} (${conn.rate.toFixed(0)}/m)`;
-      
-      const feedShort = conn.feed_description
-        ? conn.feed_description.replace("Feeds ", "Feeds: ").replace(" operating normally", "").replace(" underclocked", "")
-        : "";
-
-      const labelText = feedShort
-        ? `${itemName} • ${beltInfo}\n${feedShort}`
-        : `${itemName} • ${beltInfo}`;
-
-      // Pick conduit color matching the material
-      let edgeColor = "#38bdf8";
-      const itemLower = conn.item.toLowerCase();
-      if (itemLower.includes("steel")) edgeColor = "#cbd5e1";
-      else if (itemLower.includes("copper") || itemLower.includes("wire")) edgeColor = "#fb923c";
-      else if (itemLower.includes("iron") || itemLower.includes("screw") || itemLower.includes("plate") || itemLower.includes("rod")) edgeColor = "#fbbf24";
-
-      edges.push({
-        id: `e-${conn.from_step}-${conn.to_step}-${idx}`,
-        source: conn.from_step,
-        target: conn.to_step,
-        type: "smoothstep",
-        animated: true,
-        label: labelText,
-        labelStyle: { 
-          fill: "#f8fafc", 
-          fontSize: 9.5, 
-          fontFamily: "monospace", 
-          fontWeight: isMultiBelt ? 600 : 500 
-        },
-        labelBgStyle: { 
-          fill: "#0f172a", 
-          stroke: isMultiBelt ? "#38bdf8" : edgeColor, 
-          strokeWidth: 1.5,
-          rx: 6,
-          ry: 6,
-        },
-        labelBgPadding: [8, 5],
-        style: { 
-          strokeWidth: isMultiBelt ? 2.5 + conn.belt_tier * 0.4 : 1.8 + conn.belt_tier * 0.3, 
-          stroke: edgeColor,
-          strokeDasharray: isMultiBelt ? "8,4" : undefined
-        },
-        markerEnd: { 
-          type: MarkerType.ArrowClosed, 
-          color: edgeColor,
-          width: 14,
-          height: 14
-        },
-      });
+    // 5. Build Conveyor Splitters & Straight Corridor Edges between Machine Steps
+    // Group outgoing connections by supplier step and item
+    const outgoingGroups: Record<string, typeof result.connections> = {};
+    result.connections.forEach(conn => {
+      const key = `${conn.from_step}__${conn.item}`;
+      if (!outgoingGroups[key]) outgoingGroups[key] = [];
+      outgoingGroups[key].push(conn);
     });
 
-    // 6. Resource Input Nodes (Column 0, left)
+    Object.entries(outgoingGroups).forEach(([key, conns]) => {
+      const [fromStepId, itemId] = key.split("__");
+      const fromPos = machinePositions[fromStepId];
+      if (!fromPos) return;
+
+      const edgeColor = getMaterialColor(itemId);
+      const itemName = itemId.replace(/_/g, " ");
+
+      if (conns.length > 1) {
+        // MULTI-BRANCH FEED -> Insert Conveyor Splitter in the corridor!
+        const totalRate = conns.reduce((sum, c) => sum + c.rate, 0);
+        const maxTier = Math.max(...conns.map(c => c.belt_tier), 1);
+        const splitterId = `splitter-${fromStepId}-${itemId}`;
+
+        // Compute average Y of the destination machines to place splitter centrally
+        const destYs = conns
+          .map(c => machinePositions[c.to_step]?.y)
+          .filter(y => y !== undefined) as number[];
+        const avgDestY = destYs.length ? destYs.reduce((a, b) => a + b, 0) / destYs.length : fromPos.y;
+        
+        // Splitter position: in the clear corridor between this column and the next
+        const splitterX = fromPos.x + SPLITTER_CORRIDOR_OFFSET;
+        const splitterY = avgDestY + 25; // align near middle
+
+        nodes.push({
+          id: splitterId,
+          type: "splitterNode",
+          position: { x: splitterX, y: splitterY },
+          data: {
+            item: itemId,
+            totalIn: totalRate,
+            outputs: conns.map(c => ({ to: c.to_step, rate: c.rate })),
+            beltTier: maxTier,
+          },
+        });
+
+        // Machine -> Splitter (clean horizontal line into splitter)
+        edges.push({
+          id: `e-${fromStepId}-${splitterId}`,
+          source: fromStepId,
+          target: splitterId,
+          type: "smoothstep",
+          animated: true,
+          label: `${itemName} • ${totalRate.toFixed(0)}/m (Mk.${maxTier})`,
+          labelStyle: { fill: "#f8fafc", fontSize: 9.5, fontFamily: "monospace", fontWeight: 600 },
+          labelBgStyle: { fill: "#0f172a", stroke: edgeColor, strokeWidth: 1.5, rx: 6, ry: 6 },
+          labelBgPadding: [6, 4],
+          style: { strokeWidth: 2.2, stroke: edgeColor },
+          markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor },
+        });
+
+        // Splitter -> each Destination Machine
+        conns.forEach((conn, cIdx) => {
+          const feedDesc = conn.feed_description
+            ? conn.feed_description.replace("Feeds ", "Feeds: ").replace(" operating normally", "").replace(" underclocked", "")
+            : `${conn.rate.toFixed(0)}/m`;
+
+          edges.push({
+            id: `e-${splitterId}-${conn.to_step}-${cIdx}`,
+            source: splitterId,
+            target: conn.to_step,
+            type: "smoothstep",
+            animated: true,
+            label: `↳ ${conn.rate.toFixed(0)}/m (${feedDesc})`,
+            labelStyle: { fill: "#fef08a", fontSize: 9, fontFamily: "monospace", fontWeight: 500 },
+            labelBgStyle: { fill: "#0f172a", stroke: edgeColor, strokeWidth: 1.2, rx: 5, ry: 5 },
+            labelBgPadding: [6, 3],
+            style: { strokeWidth: 1.8, stroke: edgeColor },
+            markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor },
+          });
+        });
+
+      } else {
+        // SINGLE BRANCH FEED -> Direct smoothstep conduit
+        const conn = conns[0];
+        const isMultiBelt = conn.belt_count > 1;
+        const beltInfo = isMultiBelt
+          ? `${conn.belt_count}× Mk.${conn.belt_tier} (${conn.rate_per_belt.toFixed(0)}/m ea)`
+          : `Mk.${conn.belt_tier} (${conn.rate.toFixed(0)}/m)`;
+        
+        const feedShort = conn.feed_description
+          ? conn.feed_description.replace("Feeds ", "Feeds: ").replace(" operating normally", "").replace(" underclocked", "")
+          : "";
+
+        const labelText = feedShort
+          ? `${itemName} • ${beltInfo}\n${feedShort}`
+          : `${itemName} • ${beltInfo}`;
+
+        edges.push({
+          id: `e-${conn.from_step}-${conn.to_step}`,
+          source: conn.from_step,
+          target: conn.to_step,
+          type: "smoothstep",
+          animated: true,
+          label: labelText,
+          labelStyle: { fill: "#f8fafc", fontSize: 9.5, fontFamily: "monospace", fontWeight: 500 },
+          labelBgStyle: { fill: "#0f172a", stroke: edgeColor, strokeWidth: 1.5, rx: 6, ry: 6 },
+          labelBgPadding: [8, 5],
+          style: { 
+            strokeWidth: isMultiBelt ? 2.5 + conn.belt_tier * 0.3 : 1.8 + conn.belt_tier * 0.2, 
+            stroke: edgeColor,
+            strokeDasharray: isMultiBelt ? "8,4" : undefined 
+          },
+          markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor },
+        });
+      }
+    });
+
+    // 6. Resource Input Miners & Splitters (Column 0, left)
     const resourceKeys = Object.keys(result.resource_usage);
     const resYOffset = ((maxRowsInAnyCol - resourceKeys.length) * ROW_SPACING) / 2;
 
     resourceKeys.forEach((item, rIdx) => {
       const rate = result.resource_usage[item];
-      const id = `res-${item}`;
+      const resId = `res-${item}`;
       const y = resYOffset + rIdx * ROW_SPACING;
 
       nodes.push({
-        id,
+        id: resId,
         type: "resourceNode",
-        position: { x: 40, y: y + 20 },
+        position: { x: 40, y: y + 25 },
         data: { label: item, rate, color: "#f59e0b" },
       });
-      
-      // Smoothstep connections from resource node to consuming steps
-      result.steps.forEach(step => {
-        if (step.input_rates[item]) {
+
+      // Find all machine steps consuming this resource
+      const consumingSteps = result.steps.filter(step => step.input_rates[item]);
+
+      if (consumingSteps.length > 1) {
+        // Resource feeds multiple lines -> insert a Conveyor Splitter!
+        const splitterId = `res-splitter-${item}`;
+        const destYs = consumingSteps
+          .map(s => machinePositions[s.step_id]?.y)
+          .filter(y => y !== undefined) as number[];
+        const avgDestY = destYs.length ? destYs.reduce((a, b) => a + b, 0) / destYs.length : y;
+
+        nodes.push({
+          id: splitterId,
+          type: "splitterNode",
+          position: { x: 230, y: avgDestY + 25 },
+          data: {
+            item,
+            totalIn: rate,
+            outputs: consumingSteps.map(s => ({ to: s.step_id, rate: s.input_rates[item] })),
+            beltTier: 3,
+          },
+        });
+
+        // Miner -> Splitter
+        edges.push({
+          id: `e-${resId}-${splitterId}`,
+          source: resId,
+          target: splitterId,
+          type: "smoothstep",
+          animated: true,
+          label: `${item.replace(/_/g, " ")} • ${rate.toFixed(0)}/m`,
+          labelStyle: { fill: "#f8fafc", fontSize: 9.5, fontFamily: "monospace", fontWeight: 600 },
+          labelBgStyle: { fill: "#0f172a", stroke: "#f59e0b", strokeWidth: 1.5, rx: 6, ry: 6 },
+          labelBgPadding: [6, 4],
+          style: { strokeWidth: 2.2, stroke: "#f59e0b", strokeDasharray: "6,3" },
+          markerEnd: { type: MarkerType.ArrowClosed, color: "#f59e0b" },
+        });
+
+        // Splitter -> each Consuming Step
+        consumingSteps.forEach((step, sIdx) => {
           const consumeRate = step.input_rates[item];
           edges.push({
-            id: `e-${id}-${step.step_id}`,
-            source: id,
+            id: `e-${splitterId}-${step.step_id}-${sIdx}`,
+            source: splitterId,
             target: step.step_id,
             type: "smoothstep",
             animated: true,
-            label: `${item.replace(/_/g, " ")} • ${consumeRate.toFixed(0)}/m`,
-            labelStyle: { fill: "#f8fafc", fontSize: 9.5, fontFamily: "monospace" },
-            labelBgStyle: { fill: "#0f172a", stroke: "#f59e0b", strokeWidth: 1.5, rx: 6, ry: 6 },
-            labelBgPadding: [8, 5],
-            style: { strokeWidth: 2, stroke: "#f59e0b", strokeDasharray: "6,3" },
+            label: `↳ ${consumeRate.toFixed(0)}/m`,
+            labelStyle: { fill: "#fef08a", fontSize: 9, fontFamily: "monospace" },
+            labelBgStyle: { fill: "#0f172a", stroke: "#f59e0b", strokeWidth: 1.2, rx: 5, ry: 5 },
+            labelBgPadding: [6, 3],
+            style: { strokeWidth: 1.8, stroke: "#f59e0b" },
             markerEnd: { type: MarkerType.ArrowClosed, color: "#f59e0b" },
           });
-        }
-      });
+        });
+      } else if (consumingSteps.length === 1) {
+        const step = consumingSteps[0];
+        const consumeRate = step.input_rates[item];
+        edges.push({
+          id: `e-${resId}-${step.step_id}`,
+          source: resId,
+          target: step.step_id,
+          type: "smoothstep",
+          animated: true,
+          label: `${item.replace(/_/g, " ")} • ${consumeRate.toFixed(0)}/m`,
+          labelStyle: { fill: "#f8fafc", fontSize: 9.5, fontFamily: "monospace" },
+          labelBgStyle: { fill: "#0f172a", stroke: "#f59e0b", strokeWidth: 1.5, rx: 6, ry: 6 },
+          labelBgPadding: [8, 5],
+          style: { strokeWidth: 2, stroke: "#f59e0b", strokeDasharray: "6,3" },
+          markerEnd: { type: MarkerType.ArrowClosed, color: "#f59e0b" },
+        });
+      }
     });
 
     // 7. Output Product Nodes (Rightmost Column)
     const outputKeys = Object.keys(result.target_outputs);
-    const outX = NODE_OFFSET_X + (maxDepth + 1) * COL_SPACING + 40;
+    const maxColIdx = sortedColKeys.length ? Math.max(...sortedColKeys) : 0;
+    const outX = NODE_OFFSET_X + (maxColIdx + 1) * COL_SPACING + 40;
     const outYOffset = ((maxRowsInAnyCol - outputKeys.length) * ROW_SPACING) / 2;
 
     outputKeys.forEach((item, oIdx) => {
@@ -272,11 +378,11 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
       nodes.push({
         id,
         type: "outputNode",
-        position: { x: outX, y: y + 20 },
+        position: { x: outX, y: y + 25 },
         data: { label: item, rate },
       });
-      
-      // Connect producing steps to output node
+
+      // Connect producing machine steps directly to output node
       result.steps.forEach(step => {
         if (step.output_rates[item]) {
           const prodRate = step.output_rates[item];
@@ -332,7 +438,13 @@ export default function BlueprintCanvas({ result, isLoading, items }: BlueprintC
         <Background variant={BackgroundVariant.Dots} gap={24} size={1.2} color="#334155" />
         <Controls className="!bg-slate-800 !border-slate-700 !rounded-lg overflow-hidden shadow-xl" />
         <MiniMap 
-          nodeColor="#3b82f6" 
+          nodeColor={(n) => {
+            if (n.type === "splitterNode") return "#f59e0b";
+            if (n.type === "mergerNode") return "#06b6d4";
+            if (n.type === "resourceNode") return "#f97316";
+            if (n.type === "outputNode") return "#10b981";
+            return "#3b82f6";
+          }}
           maskColor="rgba(15, 23, 42, 0.75)" 
           className="!bg-slate-900 !border !border-slate-700 !rounded-lg"
         />
