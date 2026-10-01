@@ -11,10 +11,27 @@ import type {
   CompareResponse,
 } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+function getBaseUrl(): string {
+  // If explicitly provided via environment
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  // Server-side (Node.js runtime): use bound backend service URL injected by Vercel
+  if (typeof window === "undefined" && process.env.BACKEND_URL) {
+    return process.env.BACKEND_URL;
+  }
+  // Client-side in browser: use relative URL so Vercel top-level rewrites or Next.js rewrites route it to the backend
+  if (typeof window !== "undefined") {
+    return "";
+  }
+  // Fallback for local server-side requests
+  return "http://localhost:8000";
+}
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const baseUrl = getBaseUrl();
+  const url = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+  const res = await fetch(url, {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
