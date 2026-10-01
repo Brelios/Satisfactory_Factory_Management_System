@@ -8,6 +8,7 @@ import type {
   GameItem,
   GameRecipe,
   GameBuilding,
+  CompareResponse,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -54,4 +55,12 @@ export async function getRecipes(itemId?: string, altsOnly?: boolean): Promise<G
 /** List all buildings */
 export async function getBuildings(): Promise<GameBuilding[]> {
   return apiFetch<GameBuilding[]>("/api/buildings");
+}
+
+/** Compare blueprint variants */
+export async function solveCompare(req: SolveRequest): Promise<CompareResponse> {
+  return apiFetch<CompareResponse>("/api/solve/compare", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
 }

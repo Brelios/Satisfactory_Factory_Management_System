@@ -73,3 +73,22 @@ export interface ResourceInput {
 }
 
 export type SolveMode = "resource_constrained" | "target_driven";
+
+export interface CompareVariant {
+  label: string;
+  recipe_set: string[];
+  total_machines: number;
+  total_power_mw: number;
+  target_outputs: Record<string, number>;
+  resource_usage: Record<string, number>;
+  shopping_list: Record<string, number>;
+  blueprint_svg: string;
+  steps: ProductionStep[];
+  connections: BeltConnection[];
+}
+
+export interface CompareResponse {
+  variants: CompareVariant[];
+  best_machines: string;
+  best_power: string;
+}

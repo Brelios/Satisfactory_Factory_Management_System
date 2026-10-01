@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
 
 @layer base {
   body {
@@ -9,22 +10,21 @@
 .blueprint-grid {
   background-size: 40px 40px;
   background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
 }
 
-/* Custom Scrollbar for Dark Theme */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: #0f172a; 
-}
-::-webkit-scrollbar-thumb {
-  background: #334155; 
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #475569; 
-}
+/* React Flow dark theme overrides */
+.react-flow__background { background-color: #0f172a !important; }
+.react-flow__minimap { background-color: #1e293b !important; border: 1px solid #334155 !important; border-radius: 8px !important; }
+.react-flow__controls { background: #1e293b !important; border: 1px solid #334155 !important; border-radius: 8px !important; }
+.react-flow__controls button { background: #1e293b !important; color: #94a3b8 !important; border-bottom: 1px solid #334155 !important; }
+.react-flow__controls button:hover { background: #334155 !important; color: white !important; }
+.react-flow__edge-path { stroke: #4A90D9; }
+.react-flow__attribution { display: none; }
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #0f172a; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #475569; }
