@@ -24,9 +24,9 @@ interface BlueprintCanvasProps {
 }
 
 const nodeTypes = {
-  machineNode: MachineNode,
-  resourceNode: ResourceNode,
-  outputNode: OutputNode,
+  machineNode: MachineNode as any,
+  resourceNode: ResourceNode as any,
+  outputNode: OutputNode as any,
 };
 
 export default function BlueprintCanvas({ result, isLoading, items }: BlueprintCanvasProps) {
