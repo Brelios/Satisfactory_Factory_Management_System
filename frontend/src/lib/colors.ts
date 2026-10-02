@@ -1,6 +1,6 @@
 /**
  * Satisfactory Factory Management System
- * Item color mapping and formatting utilities.
+ * Item color mapping, resource value weights, and formatting utilities.
  */
 
 export const ITEM_COLORS: Record<string, string> = {
@@ -15,6 +15,9 @@ export const ITEM_COLORS: Record<string, string> = {
   uranium: "#22c55e", // Green 500
   water: "#06b6d4", // Cyan 500
   crude_oil: "#334155", // Slate 700
+  sulfur: "#eab308", // Yellow 500
+  nitrogen_gas: "#0284c7", // Sky 600
+  sam: "#a855f7", // Purple 500
 
   // Iron Tier
   iron_ingot: "#38bdf8", // Sky 400 (refined molten/solid)
@@ -79,4 +82,45 @@ export function formatItemName(itemId: string): string {
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+/**
+ * Raw resource value weight multiplier.
+ * Common ores (Iron, Copper, Limestone) = 1.0 point
+ * Intermediate energy/chemical (Coal, Sulfur) = 1.5 - 2.0 points
+ * Rare / Precious (Caterium, Quartz, Oil) = 2.5 points
+ * High-tech / Nuclear / SAM = 3.5 - 5.0 points
+ */
+export const RESOURCE_VALUE_WEIGHTS: Record<string, number> = {
+  iron_ore: 1.0,
+  copper_ore: 1.0,
+  limestone: 1.0,
+  water: 0.5,
+
+  coal: 1.5,
+  sulfur: 2.0,
+
+  raw_quartz: 2.5,
+  caterium_ore: 2.5,
+  crude_oil: 2.5,
+  nitrogen_gas: 2.0,
+
+  bauxite: 3.5,
+  uranium: 4.5,
+  sam: 5.0,
+};
+
+/**
+ * Calculates a weighted resource score for a variant.
+ * Lower score = more resource efficient taking item rarity into account.
+ */
+export function calculateResourceScore(
+  resourceUsage: Record<string, number>
+): number {
+  if (!resourceUsage) return 0;
+  return Object.entries(resourceUsage).reduce((total, [item, rate]) => {
+    const key = item.toLowerCase();
+    const weight = RESOURCE_VALUE_WEIGHTS[key] ?? 1.0;
+    return total + rate * weight;
+  }, 0);
 }
