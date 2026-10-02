@@ -89,7 +89,26 @@ export default function ConveyorBridgeEdge({
   let pathPoints: { x: number; y: number }[] = [];
 
   if (edgeData.waypoints && edgeData.waypoints.length >= 2) {
-    pathPoints = edgeData.waypoints;
+    const wps = [...edgeData.waypoints];
+    wps[0] = { x: sourceX, y: sourceY };
+    wps[wps.length - 1] = { x: targetX, y: targetY };
+
+    if (wps.length === 4) {
+      // 3-segment orthogonal: source -> (turnX, sourceY) -> (turnX, targetY) -> target
+      const turnX = wps[1].x;
+      wps[1] = { x: turnX, y: sourceY };
+      wps[2] = { x: turnX, y: targetY };
+    } else if (wps.length === 6) {
+      // 5-segment transit: source -> (turnX1, sourceY) -> (turnX1, transitY) -> (turnX2, transitY) -> (turnX2, targetY) -> target
+      const turnX1 = wps[1].x;
+      const transitY = wps[2].y;
+      const turnX2 = wps[3].x;
+      wps[1] = { x: turnX1, y: sourceY };
+      wps[2] = { x: turnX1, y: transitY };
+      wps[3] = { x: turnX2, y: transitY };
+      wps[4] = { x: turnX2, y: targetY };
+    }
+    pathPoints = wps;
   } else if (Math.abs(sourceY - targetY) < 3) {
     // Pure horizontal straight line
     pathPoints = [

@@ -46,10 +46,10 @@ const SPLITTER_WIDTH = 155;
 const SPLITTER_HEIGHT = 90;
 
 // Spacing constants
-const COL_SPACING = 800; // Horizontal column pitch
-const ROW_SPACING = 320; // Vertical row pitch
-const NODE_OFFSET_X = 420; // Starting X after raw resource miners
-const SPLITTER_X_OFFSET = 320; // Splitter X distance from its source machine
+const COL_SPACING = 880; // Horizontal column pitch
+const ROW_SPACING = 340; // Vertical row pitch
+const NODE_OFFSET_X = 500; // Starting X after raw resource miners
+const SPLITTER_X_OFFSET = 400; // Splitter X distance from its source machine (140px gap)
 
 export default function BlueprintCanvas({
   result,
@@ -192,13 +192,23 @@ export default function BlueprintCanvas({
       return destPos.y + NODE_HEIGHT * topPercent;
     };
 
+    // Helper to determine belt tier for a given rate
+    const getTierForRate = (r: number): number => {
+      if (r <= 60) return 1;
+      if (r <= 120) return 2;
+      if (r <= 270) return 3;
+      if (r <= 480) return 4;
+      if (r <= 780) return 5;
+      return 6;
+    };
+
     // Corridor vertical track allocator to avoid parallel vertical overlaps
     const corridorTrackCounts: Record<number, number> = {};
-    const allocateCorridorTrack = (colIdx: number, baseOffset = 40): number => {
+    const allocateCorridorTrack = (colIdx: number, baseOffset = 35): number => {
       if (!corridorTrackCounts[colIdx]) corridorTrackCounts[colIdx] = 0;
       const trackIdx = corridorTrackCounts[colIdx]++;
-      const colBaseX = NODE_OFFSET_X + colIdx * COL_SPACING + NODE_WIDTH + SPLITTER_WIDTH + baseOffset;
-      return colBaseX + (trackIdx % 6) * 26;
+      const colBaseX = NODE_OFFSET_X + colIdx * COL_SPACING + SPLITTER_X_OFFSET + SPLITTER_WIDTH + baseOffset;
+      return colBaseX + (trackIdx % 6) * 24;
     };
 
     // Long-distance inter-row transit channel tracker
@@ -225,11 +235,12 @@ export default function BlueprintCanvas({
       if (conns.length > 1) {
         // MULTI-BRANCH FEED: Insert Conveyor Splitter in the parent's horizontal lane
         const totalRate = conns.reduce((sum, c) => sum + c.rate, 0);
-        const maxTier = Math.max(...conns.map((c) => c.belt_tier), 1);
+        const inputTier = getTierForRate(totalRate);
         const splitterId = `splitter-${fromStepId}-${itemId}`;
 
+        const splitterHeight = Math.max(90, 48 + conns.length * 26);
         const splitterX = fromPos.x + SPLITTER_X_OFFSET;
-        const splitterY = fromPos.y + (NODE_HEIGHT - SPLITTER_HEIGHT) / 2;
+        const splitterY = fromPos.y + (NODE_HEIGHT - splitterHeight) / 2;
 
         nodes.push({
           id: splitterId,
@@ -239,18 +250,18 @@ export default function BlueprintCanvas({
             item: itemId,
             totalIn: totalRate,
             outputs: conns.map((c) => ({ to: c.to_step, rate: c.rate })),
-            beltTier: maxTier,
+            beltTier: inputTier,
           },
         });
 
-        // Machine -> Splitter: 100% straight horizontal line
+        // Machine -> Splitter: 100% straight horizontal line centered in the 140px gap
         const machToSplitterSrc = {
           x: fromPos.x + NODE_WIDTH,
           y: fromPos.y + NODE_HEIGHT * 0.5,
         };
         const machToSplitterDst = {
           x: splitterX,
-          y: splitterY + SPLITTER_HEIGHT * 0.5,
+          y: splitterY + splitterHeight * 0.5,
         };
 
         edges.push({
@@ -263,10 +274,10 @@ export default function BlueprintCanvas({
           data: {
             waypoints: [machToSplitterSrc, machToSplitterDst],
             isMultiBelt: false,
-            beltTier: maxTier,
+            beltTier: inputTier,
             edgeColor,
             shortLabel: `${itemName} ${totalRate.toFixed(0)}/m`,
-            detailTooltip: `${itemName} • ${totalRate.toFixed(1)}/m\nMk.${maxTier} conveyor feed into Splitter`,
+            detailTooltip: `${itemName} • ${totalRate.toFixed(1)}/m\nMk.${inputTier} conveyor feed into Splitter`,
             labelX: (machToSplitterSrc.x + machToSplitterDst.x) / 2,
             labelY: machToSplitterSrc.y - 14,
           },
@@ -278,14 +289,14 @@ export default function BlueprintCanvas({
           const destPos = machinePositions[conn.to_step];
           const destDepth = destPos ? destPos.colIdx : fromDepth + 1;
           const targetY = getDestinationHandleY(conn.to_step, itemId);
-          const targetX = destPos ? destPos.x : splitterX + 300;
+          const targetX = destPos ? destPos.x : splitterX + 350;
 
           // Branch handle Y on Splitter
           const splitCount = conns.length;
           const topPercent = splitCount === 1 ? 0.5 : 0.28 + (cIdx / (splitCount - 1)) * 0.44;
           const splitBranchSrc = {
             x: splitterX + SPLITTER_WIDTH,
-            y: splitterY + SPLITTER_HEIGHT * topPercent,
+            y: splitterY + splitterHeight * topPercent,
           };
 
           const isDirectNeighbor = destDepth === fromDepth + 1;
@@ -293,9 +304,13 @@ export default function BlueprintCanvas({
           let labelX = targetX - 80;
           let labelY = targetY;
 
+          // Corridor track is guaranteed to be at least 35px past the splitter right edge
+          const minCorridorX = splitterX + SPLITTER_WIDTH + 35;
+          const allocatedX = allocateCorridorTrack(fromDepth, 35);
+          const turnX = Math.max(minCorridorX, allocatedX);
+
           if (isDirectNeighbor) {
             // Adjacent column: turn through vertical corridor
-            const turnX = allocateCorridorTrack(fromDepth, 20);
             waypoints = [
               splitBranchSrc,
               { x: turnX, y: splitBranchSrc.y },
@@ -311,13 +326,12 @@ export default function BlueprintCanvas({
               Math.min(fromPos.rowIdx, destPos?.rowIdx ?? 0) * ROW_SPACING +
               ((transitChannelCounter++ % 4) - 2) * 22;
 
-            const turnX1 = allocateCorridorTrack(fromDepth, 20);
             const turnX2 = targetX - 50 - (cIdx % 3) * 20;
 
             waypoints = [
               splitBranchSrc,
-              { x: turnX1, y: splitBranchSrc.y },
-              { x: turnX1, y: transitChannelY },
+              { x: turnX, y: splitBranchSrc.y },
+              { x: turnX, y: transitChannelY },
               { x: turnX2, y: transitChannelY },
               { x: turnX2, y: targetY },
               { x: targetX, y: targetY },
