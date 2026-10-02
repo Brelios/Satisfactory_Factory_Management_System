@@ -103,15 +103,38 @@ def solve_production(req: SolveRequest):
     svg_gen = BlueprintGenerator(game_data)
     blueprint_svg = svg_gen.generate(result)
 
+    step_resps = _build_step_responses(result)
+    conn_resps = _build_conn_responses(result)
+
+    from app.solver.logistics_solver import solve_logistics
+    logistics_plan = solve_logistics(
+        steps_data=[s.model_dump() for s in step_resps],
+        connections_data=[c.model_dump() for c in conn_resps],
+        resource_usage=result.resource_usage,
+        target_outputs=result.target_outputs,
+        belt_speeds=game_data.belt_speeds,
+        selected_tier=req.max_belt_tier or 3,
+        enforce_belt_limit=req.enforce_belt_limit,
+        remainder_strategy=req.remainder_strategy,
+        allow_overclock=req.allow_overclock,
+        strict_tier=req.strict_tier,
+    )
+
+    shopping_list = dict(result.shopping_list)
+    total_power_shards = sum(m.power_shards for m in logistics_plan.machines)
+    if total_power_shards > 0:
+        shopping_list["Power Shard"] = total_power_shards
+
     return SolveResponse(
-        steps=_build_step_responses(result),
-        connections=_build_conn_responses(result),
+        steps=step_resps,
+        connections=conn_resps,
         blueprint_svg=blueprint_svg,
         total_power_mw=result.total_power,
         total_machines=result.total_machines,
         target_outputs=result.target_outputs,
         resource_usage=result.resource_usage,
-        shopping_list=result.shopping_list
+        shopping_list=shopping_list,
+        logistics=logistics_plan,
     )
 
 
@@ -140,21 +163,42 @@ def solve_compare(req: SolveRequest):
             detail="No feasible production plans found for any recipe combination."
         )
 
+    from app.solver.logistics_solver import solve_logistics
     variants = []
     for v in variants_raw:
-        result = v["result"]
-        blueprint_svg = svg_gen.generate(result)
+        res = v["result"]
+        blueprint_svg = svg_gen.generate(res)
+        step_resps = _build_step_responses(res)
+        conn_resps = _build_conn_responses(res)
+        v_logistics = solve_logistics(
+            steps_data=[s.model_dump() for s in step_resps],
+            connections_data=[c.model_dump() for c in conn_resps],
+            resource_usage=res.resource_usage,
+            target_outputs=res.target_outputs,
+            belt_speeds=game_data.belt_speeds,
+            selected_tier=req.max_belt_tier or 3,
+            enforce_belt_limit=req.enforce_belt_limit,
+            remainder_strategy=req.remainder_strategy,
+            allow_overclock=req.allow_overclock,
+            strict_tier=req.strict_tier,
+        )
+        v_shop = dict(res.shopping_list)
+        v_shards = sum(m.power_shards for m in v_logistics.machines)
+        if v_shards > 0:
+            v_shop["Power Shard"] = v_shards
+
         variants.append(CompareVariant(
             label=v["label"],
             recipe_set=v["recipe_set"],
-            total_machines=result.total_machines,
-            total_power_mw=result.total_power,
-            target_outputs=result.target_outputs,
-            resource_usage=result.resource_usage,
-            shopping_list=result.shopping_list,
+            total_machines=res.total_machines,
+            total_power_mw=res.total_power,
+            target_outputs=res.target_outputs,
+            resource_usage=res.resource_usage,
+            shopping_list=v_shop,
             blueprint_svg=blueprint_svg,
-            steps=_build_step_responses(result),
-            connections=_build_conn_responses(result),
+            steps=step_resps,
+            connections=conn_resps,
+            logistics=v_logistics,
         ))
 
     # Find best variants

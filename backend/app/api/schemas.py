@@ -1,5 +1,18 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Literal, Dict, List, Optional
+from app.solver.logistics_solver import (
+    LogisticsPlan,
+    PhysicalMachine,
+    PhysicalBelt,
+    PhysicalSplitter,
+    PhysicalMerger,
+    PhysicalMiner,
+    ValidationCheck,
+    LogisticsValidation,
+    TierComparisonRow,
+    MachineInput,
+    MachineFeeder,
+)
 
 
 class SolveRequest(BaseModel):
@@ -9,7 +22,11 @@ class SolveRequest(BaseModel):
     target_items: Optional[List[str]] = None
     unlocked_alts: List[str] = []
     optimization: str = "maximize_output"
-    max_belt_tier: Optional[int] = None
+    max_belt_tier: Optional[int] = 3
+    enforce_belt_limit: bool = True
+    remainder_strategy: Literal["merge", "underclock", "dedicated"] = "merge"
+    allow_overclock: bool = False
+    strict_tier: bool = False
 
 
 class ProductionStepResponse(BaseModel):
@@ -50,6 +67,7 @@ class SolveResponse(BaseModel):
     target_outputs: Dict[str, float]
     resource_usage: Dict[str, float]
     shopping_list: Dict[str, int]
+    logistics: Optional[LogisticsPlan] = None
 
 
 class CompareVariant(BaseModel):
@@ -63,6 +81,7 @@ class CompareVariant(BaseModel):
     blueprint_svg: str
     steps: List[ProductionStepResponse]
     connections: List[BeltConnectionResponse]
+    logistics: Optional[LogisticsPlan] = None
 
 
 class CompareResponse(BaseModel):

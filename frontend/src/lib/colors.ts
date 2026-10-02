@@ -5,25 +5,25 @@
 
 export const ITEM_COLORS: Record<string, string> = {
   // Ores & Raw Materials
-  iron_ore: "#818cf8", // Indigo 400 - distinct from ingots/plates
+  iron_ore: "#94a3b8", // Slate 400 (raw mineral gray - distinct from all refined metals)
   copper_ore: "#f97316", // Orange 500
-  coal: "#64748b", // Slate 500
+  coal: "#475569", // Slate 600
   limestone: "#eab308", // Yellow 500
   raw_quartz: "#f43f5e", // Rose 500
   bauxite: "#d97706", // Amber 600
   caterium_ore: "#fbbf24", // Amber 400
   uranium: "#22c55e", // Green 500
   water: "#06b6d4", // Cyan 500
-  crude_oil: "#334155", // Slate 700
-  sulfur: "#eab308", // Yellow 500
-  nitrogen_gas: "#0284c7", // Sky 600
-  sam: "#a855f7", // Purple 500
+  crude_oil: "#1e293b", // Slate 800
+  sulfur: "#fde047", // Yellow 300
+  nitrogen_gas: "#38bdf8", // Sky 400
+  sam: "#c084fc", // Purple 400
 
   // Iron Tier
-  iron_ingot: "#38bdf8", // Sky 400 (refined molten/solid)
-  iron_plate: "#2563eb", // Blue 600 (distinct dark blue plate)
+  iron_ingot: "#0ea5e9", // Vivid Sky Blue (refined metal)
+  iron_plate: "#2563eb", // Royal Cobalt Blue (structural plate)
   iron_rod: "#06b6d4", // Cyan 500 (slender rod)
-  screw: "#a855f7", // Purple 500 (high contrast against plate/rod)
+  screw: "#d946ef", // Fuchsia/Magenta (high contrast against blue/slate)
   reinforced_iron_plate: "#ec4899", // Pink 500 (composite)
   modular_frame: "#10b981", // Emerald 500 (heavy structural)
   heavy_modular_frame: "#059669", // Emerald 600
@@ -31,17 +31,17 @@ export const ITEM_COLORS: Record<string, string> = {
   // Copper Tier
   copper_ingot: "#ea580c", // Orange 600
   wire: "#facc15", // Yellow 400 (electrical wire)
-  cable: "#d97706", // Amber 600 (sheathed cable)
+  cable: "#b45309", // Amber 700 (sheathed cable)
   copper_sheet: "#c2410c", // Orange 700
 
   // Steel Tier
   steel_ingot: "#14b8a6", // Teal 500
-  steel_beam: "#0284c7", // Sky 600
-  steel_pipe: "#0ea5e9", // Sky 500
-  encased_industrial_beam: "#475569", // Slate 600
+  steel_beam: "#7c3aed", // Deep Violet (completely distinct from blue plate and sky ingot)
+  steel_pipe: "#6366f1", // Indigo 500
+  encased_industrial_beam: "#64748b", // Slate 500
   rotor: "#8b5cf6", // Violet 500
-  stator: "#7c3aed", // Violet 600
-  motor: "#6366f1", // Indigo 500
+  stator: "#9333ea", // Purple 600
+  motor: "#a855f7", // Purple 500
 
   // Minerals & Advanced
   concrete: "#ca8a04", // Dark amber/tan

@@ -11,6 +11,9 @@ export interface FactoryShareState {
   unlockedAlts: string[];
   enforceBeltLimit?: boolean;
   maxBeltTier?: number;
+  remainderStrategy?: "merge" | "underclock" | "dedicated";
+  allowOverclock?: boolean;
+  strictTier?: boolean;
 }
 
 const STORAGE_KEY = "satisfactory_factory_saved_plan";

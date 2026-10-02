@@ -8,6 +8,7 @@ import {
   CompareVariant,
   GameItem,
   GameRecipe,
+  SolveRequest,
 } from "@/lib/types";
 import { solveProduction, solveCompare, getItems, getRecipes } from "@/lib/api";
 import BlueprintCanvas from "@/components/BlueprintCanvas";
@@ -15,6 +16,8 @@ import ShoppingList from "@/components/ShoppingList";
 import ProductionTable from "@/components/ProductionTable";
 import AltRecipePanel from "@/components/AltRecipePanel";
 import ComparePanel from "@/components/ComparePanel";
+import ValidationPanel from "@/components/ValidationPanel";
+import TierComparePanel from "@/components/TierComparePanel";
 import { FACTORY_PRESETS, type FactoryPreset } from "@/lib/presets";
 import {
   generateShareUrl,
@@ -50,9 +53,21 @@ export default function Page() {
   });
   const [unlockedAlts, setUnlockedAlts] = useState<string[]>([]);
 
-  // Belt constraint controls
+  // Belt constraint & logistics controls
   const [enforceBeltLimit, setEnforceBeltLimit] = useState(false);
   const [maxBeltTier, setMaxBeltTier] = useState<number>(3);
+  const [remainderStrategy, setRemainderStrategy] = useState<
+    "merge" | "underclock" | "dedicated"
+  >("merge");
+  const [allowOverclock, setAllowOverclock] = useState(false);
+  const [strictTier, setStrictTier] = useState(false);
+
+  // Panels & Offender Highlight
+  const [validationPanelOpen, setValidationPanelOpen] = useState(false);
+  const [tierComparePanelOpen, setTierComparePanelOpen] = useState(false);
+  const [highlightedOffenderId, setHighlightedOffenderId] = useState<string | null>(
+    null
+  );
 
   const [result, setResult] = useState<SolveResponse | null>(null);
   const [compareVariants, setCompareVariants] = useState<CompareVariant[] | null>(
@@ -84,7 +99,10 @@ export default function Page() {
       currentTargetItems: string[],
       currentAlts: string[],
       currentEnforceBelt: boolean,
-      currentMaxBelt: number
+      currentMaxBelt: number,
+      currentRemainderStrategy: "merge" | "underclock" | "dedicated" = "merge",
+      currentAllowOverclock: boolean = false,
+      currentStrictTier: boolean = false
     ) => {
       setError(null);
       setCompareVariants(null);
@@ -112,13 +130,17 @@ export default function Page() {
           activeResources.map((r) => [r.item_id, r.rate])
         );
         const targetsMap = Object.fromEntries(activeTargets);
-        const req = {
+        const req: SolveRequest = {
           mode: currentMode,
           resources: resMap,
           targets: targetsMap,
           target_items: currentTargetItems,
           unlocked_alts: currentAlts,
-          max_belt_tier: currentEnforceBelt ? currentMaxBelt : undefined,
+          max_belt_tier: currentMaxBelt,
+          enforce_belt_limit: currentEnforceBelt,
+          remainder_strategy: currentRemainderStrategy,
+          allow_overclock: currentAllowOverclock,
+          strict_tier: currentStrictTier,
         };
 
         const data = await solveProduction(req);
@@ -136,6 +158,9 @@ export default function Page() {
           unlockedAlts: currentAlts,
           enforceBeltLimit: currentEnforceBelt,
           maxBeltTier: currentMaxBelt,
+          remainderStrategy: currentRemainderStrategy,
+          allowOverclock: currentAllowOverclock,
+          strictTier: currentStrictTier,
         });
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
@@ -146,6 +171,99 @@ export default function Page() {
     },
     []
   );
+
+  // Handlers for instant re-solve upon constraint adjustments
+  const handleMaxBeltTierChange = (newTier: number) => {
+    setMaxBeltTier(newTier);
+    if (result) {
+      executeSolve(
+        mode,
+        resources,
+        targetRates,
+        targetItems,
+        unlockedAlts,
+        enforceBeltLimit,
+        newTier,
+        remainderStrategy,
+        allowOverclock,
+        strictTier
+      );
+    }
+  };
+
+  const handleEnforceBeltLimitChange = (checked: boolean) => {
+    setEnforceBeltLimit(checked);
+    if (result) {
+      executeSolve(
+        mode,
+        resources,
+        targetRates,
+        targetItems,
+        unlockedAlts,
+        checked,
+        maxBeltTier,
+        remainderStrategy,
+        allowOverclock,
+        strictTier
+      );
+    }
+  };
+
+  const handleRemainderStrategyChange = (
+    strat: "merge" | "underclock" | "dedicated"
+  ) => {
+    setRemainderStrategy(strat);
+    if (result) {
+      executeSolve(
+        mode,
+        resources,
+        targetRates,
+        targetItems,
+        unlockedAlts,
+        enforceBeltLimit,
+        maxBeltTier,
+        strat,
+        allowOverclock,
+        strictTier
+      );
+    }
+  };
+
+  const handleAllowOverclockChange = (checked: boolean) => {
+    setAllowOverclock(checked);
+    if (result) {
+      executeSolve(
+        mode,
+        resources,
+        targetRates,
+        targetItems,
+        unlockedAlts,
+        enforceBeltLimit,
+        maxBeltTier,
+        remainderStrategy,
+        checked,
+        strictTier
+      );
+    }
+  };
+
+  const handleStrictTierChange = (checked: boolean) => {
+    setStrictTier(checked);
+    if (result) {
+      executeSolve(
+        mode,
+        resources,
+        targetRates,
+        targetItems,
+        unlockedAlts,
+        enforceBeltLimit,
+        maxBeltTier,
+        remainderStrategy,
+        allowOverclock,
+        checked
+      );
+    }
+  };
 
   // Load items, recipes, and check URL params on initial mount
   useEffect(() => {
@@ -178,6 +296,15 @@ export default function Page() {
             setTargetRates(loadedPlan.targetRates || {});
             setEnforceBeltLimit(Boolean(loadedPlan.enforceBeltLimit));
             setMaxBeltTier(loadedPlan.maxBeltTier || 3);
+            if (loadedPlan.remainderStrategy) {
+              setRemainderStrategy(loadedPlan.remainderStrategy);
+            }
+            if (loadedPlan.allowOverclock !== undefined) {
+              setAllowOverclock(loadedPlan.allowOverclock);
+            }
+            if (loadedPlan.strictTier !== undefined) {
+              setStrictTier(loadedPlan.strictTier);
+            }
 
             // Reconstruct resource inputs with display names
             const restoredResources: ResourceInput[] = (
@@ -203,7 +330,10 @@ export default function Page() {
               loadedPlan.targetItems || ["modular_frame"],
               loadedPlan.unlockedAlts || [],
               Boolean(loadedPlan.enforceBeltLimit),
-              loadedPlan.maxBeltTier || 3
+              loadedPlan.maxBeltTier || 3,
+              loadedPlan.remainderStrategy || "merge",
+              Boolean(loadedPlan.allowOverclock),
+              Boolean(loadedPlan.strictTier)
             );
           }
         }
@@ -222,7 +352,10 @@ export default function Page() {
       targetItems,
       unlockedAlts,
       enforceBeltLimit,
-      maxBeltTier
+      maxBeltTier,
+      remainderStrategy,
+      allowOverclock,
+      strictTier
     );
   };
 
@@ -255,13 +388,17 @@ export default function Page() {
         activeResources.map((r) => [r.item_id, r.rate])
       );
       const targetsMap = Object.fromEntries(activeTargets);
-      const req = {
+      const req: SolveRequest = {
         mode,
         resources: resMap,
         targets: targetsMap,
         target_items: targetItems,
         unlocked_alts: unlockedAlts,
-        max_belt_tier: enforceBeltLimit ? maxBeltTier : undefined,
+        max_belt_tier: maxBeltTier,
+        enforce_belt_limit: enforceBeltLimit,
+        remainder_strategy: remainderStrategy,
+        allow_overclock: allowOverclock,
+        strict_tier: strictTier,
       };
 
       const data = await solveCompare(req);
@@ -291,6 +428,7 @@ export default function Page() {
       target_outputs: variant.target_outputs,
       resource_usage: variant.resource_usage,
       shopping_list: variant.shopping_list,
+      logistics: variant.logistics,
     });
   };
 
@@ -307,6 +445,11 @@ export default function Page() {
     }));
     setResources(updatedRes);
 
+    const tier = preset.maxBeltTier || maxBeltTier;
+    if (preset.maxBeltTier) {
+      setMaxBeltTier(preset.maxBeltTier);
+    }
+
     executeSolve(
       preset.mode,
       updatedRes,
@@ -314,7 +457,10 @@ export default function Page() {
       preset.targetItems,
       preset.unlockedAlts || [],
       enforceBeltLimit,
-      preset.maxBeltTier || maxBeltTier
+      tier,
+      remainderStrategy,
+      allowOverclock,
+      strictTier
     );
   };
 
@@ -327,6 +473,9 @@ export default function Page() {
       unlockedAlts,
       enforceBeltLimit,
       maxBeltTier,
+      remainderStrategy,
+      allowOverclock,
+      strictTier,
     });
 
     if (navigator?.clipboard) {
@@ -403,6 +552,51 @@ export default function Page() {
               </option>
             ))}
           </select>
+
+          {/* Validation Modal Toggle */}
+          {result?.logistics?.validation && (
+            <button
+              onClick={() => setValidationPanelOpen((prev) => !prev)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all shadow-sm active:scale-95 ${
+                result.logistics.validation.passed
+                  ? "bg-emerald-950/60 border-emerald-700/80 text-emerald-300 hover:bg-emerald-900/80"
+                  : "bg-red-950/60 border-red-700/80 text-red-300 hover:bg-red-900/80 animate-pulse"
+              }`}
+              title="View logistics physical build validation checks"
+            >
+              <span>🛡️</span>
+              <span>Validation</span>
+              <span
+                className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${
+                  result.logistics.validation.passed
+                    ? "bg-emerald-500 text-slate-950 font-bold"
+                    : "bg-red-500 text-white font-bold"
+                }`}
+              >
+                {result.logistics.validation.passed
+                  ? "PASS"
+                  : `${
+                      result.logistics.validation.checks.filter((c) => !c.passed)
+                        .length
+                    } FAIL`}
+              </span>
+            </button>
+          )}
+
+          {/* Tier Compare Modal Toggle */}
+          {result?.logistics?.tier_comparison && (
+            <button
+              onClick={() => setTierComparePanelOpen((prev) => !prev)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg border border-slate-700 text-xs font-semibold transition-all shadow-sm active:scale-95"
+              title="Compare factory logistics across Mk.1 - Mk.6 conveyor tiers"
+            >
+              <span>📊</span>
+              <span>Compare Tiers</span>
+              <span className="bg-sky-500/20 text-sky-300 text-[10px] font-mono px-1.5 py-0.5 rounded border border-sky-500/30">
+                Mk.{maxBeltTier}
+              </span>
+            </button>
+          )}
 
           {/* Share Plan Button */}
           <button
@@ -545,7 +739,10 @@ export default function Page() {
                         className="w-2 h-2 rounded-full shrink-0"
                         style={{ backgroundColor: getItemColor(res.item_id) }}
                       />
-                      <label className="text-xs text-slate-200 capitalize truncate" title={res.display_name}>
+                      <label
+                        className="text-xs text-slate-200 capitalize truncate"
+                        title={res.display_name}
+                      >
                         {res.display_name}
                       </label>
                     </div>
@@ -563,7 +760,9 @@ export default function Page() {
                           const newRate = Math.max(0, Number(e.target.value));
                           setResources(
                             resources.map((r) =>
-                              r.item_id === res.item_id ? { ...r, rate: newRate } : r
+                              r.item_id === res.item_id
+                                ? { ...r, rate: newRate }
+                                : r
                             )
                           );
                         }}
@@ -608,45 +807,106 @@ export default function Page() {
               )}
             </div>
 
-            {/* Belt Constraints Toggle */}
-            <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2.5">
+            {/* Belt Constraints & Logistics Options */}
+            <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-xs font-bold text-slate-200">
                     Belt Throughput Constraint
                   </div>
                   <div className="text-[10.5px] text-slate-400">
-                    Split excess flow into parallel belts
+                    Enforce belt caps &amp; physical manifolds
                   </div>
                 </div>
                 <input
                   type="checkbox"
                   id="belt-limit-toggle"
                   checked={enforceBeltLimit}
-                  onChange={(e) => setEnforceBeltLimit(e.target.checked)}
+                  onChange={(e) => handleEnforceBeltLimitChange(e.target.checked)}
                   className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 bg-slate-700 border-slate-600 cursor-pointer"
                 />
               </div>
 
+              {/* Max Tier Dropdown */}
+              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                <label htmlFor="max-belt-select" className="text-xs text-slate-300">
+                  Max Unlocked Tier:
+                </label>
+                <select
+                  id="max-belt-select"
+                  value={maxBeltTier}
+                  onChange={(e) => handleMaxBeltTierChange(Number(e.target.value))}
+                  className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-sky-400 font-mono focus:border-sky-500 outline-none cursor-pointer"
+                >
+                  {BELT_TIERS.map((b) => (
+                    <option key={b.tier} value={b.tier}>
+                      {b.name} ({b.speed}/min)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Strict Tier Checkbox */}
               {enforceBeltLimit && (
-                <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
-                  <label htmlFor="max-belt-select" className="text-xs text-slate-300">
-                    Max Unlocked Tier:
-                  </label>
-                  <select
-                    id="max-belt-select"
-                    value={maxBeltTier}
-                    onChange={(e) => setMaxBeltTier(Number(e.target.value))}
-                    className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-sky-400 font-mono focus:border-sky-500 outline-none cursor-pointer"
-                  >
-                    {BELT_TIERS.map((b) => (
-                      <option key={b.tier} value={b.tier}>
-                        {b.name} ({b.speed}/min)
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex items-center justify-between pt-1">
+                  <div>
+                    <div className="text-[11px] font-medium text-slate-300">
+                      Strict Tier Cap
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      Disallow fallback parallel splitting
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    id="strict-tier-toggle"
+                    checked={strictTier}
+                    onChange={(e) => handleStrictTierChange(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded text-sky-600 focus:ring-sky-500 bg-slate-700 border-slate-600 cursor-pointer"
+                  />
                 </div>
               )}
+
+              {/* Remainder Strategy Dropdown */}
+              <div className="pt-2 border-t border-slate-800/80 space-y-1">
+                <label
+                  htmlFor="remainder-strategy-select"
+                  className="text-[11px] font-medium text-slate-300 block"
+                >
+                  Remainder Strategy:
+                </label>
+                <select
+                  id="remainder-strategy-select"
+                  value={remainderStrategy}
+                  onChange={(e) =>
+                    handleRemainderStrategyChange(e.target.value as any)
+                  }
+                  className="w-full bg-slate-900 border border-slate-700 rounded-md px-2 py-1.5 text-xs text-slate-200 focus:border-sky-500 outline-none cursor-pointer"
+                >
+                  <option value="merge">Merge Remainders (Pool surplus)</option>
+                  <option value="underclock">Underclock Last Machine</option>
+                  <option value="dedicated">Dedicated Remainder Belt</option>
+                </select>
+              </div>
+
+              {/* Allow Overclocking Checkbox */}
+              <div className="flex items-center justify-between pt-1 border-t border-slate-800/80">
+                <div>
+                  <div className="text-[11px] font-medium text-slate-300">
+                    Allow Overclocking
+                  </div>
+                  <div className="text-[10px] text-slate-500">
+                    Up to 250% + Power Shards
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  id="overclock-toggle"
+                  checked={allowOverclock}
+                  onChange={(e) => handleAllowOverclockChange(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded text-sky-600 focus:ring-sky-500 bg-slate-700 border-slate-600 cursor-pointer"
+                />
+              </div>
             </div>
 
             {/* Action Buttons */}
@@ -663,7 +923,9 @@ export default function Page() {
                 disabled={loading || comparing}
                 className="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-sky-950/40 active:scale-98"
               >
-                {comparing ? "Comparing Recipe Variants..." : "Compare Alternate Recipes"}
+                {comparing
+                  ? "Comparing Recipe Variants..."
+                  : "Compare Alternate Recipes"}
               </button>
             </div>
 
@@ -692,6 +954,7 @@ export default function Page() {
               isLoading={loading}
               items={items}
               onSelectPreset={applyPreset}
+              highlightedOffenderId={highlightedOffenderId}
             />
           </div>
 
@@ -717,6 +980,28 @@ export default function Page() {
         onSetAllAlts={(ids) => setUnlockedAlts(ids)}
         isOpen={altPanelOpen}
         onClose={() => setAltPanelOpen(false)}
+      />
+
+      {/* Validation Panel */}
+      <ValidationPanel
+        validation={result?.logistics?.validation}
+        onHighlightOffender={(id) => setHighlightedOffenderId(id)}
+        isOpen={validationPanelOpen}
+        onClose={() => setValidationPanelOpen(false)}
+      />
+
+      {/* Conveyor Tier Comparison Panel */}
+      <TierComparePanel
+        tierComparison={result?.logistics?.tier_comparison}
+        selectedTier={maxBeltTier}
+        minTierToAvoidSplitting={
+          result?.logistics?.min_tier_to_avoid_splitting || 1
+        }
+        onSelectTier={(tier) => {
+          handleMaxBeltTierChange(tier);
+        }}
+        isOpen={tierComparePanelOpen}
+        onClose={() => setTierComparePanelOpen(false)}
       />
     </div>
   );

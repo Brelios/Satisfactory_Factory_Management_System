@@ -168,7 +168,42 @@ export default function ShoppingList({ result }: { result: SolveResponse | null 
         </div>
       </div>
 
-      {/* 6. Conveyor Logistics & Parallel Belt Feedback */}
+      {/* 6. Physical Logistics Infrastructure */}
+      {result.logistics && (
+        <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2">
+          <h4 className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center justify-between">
+            <span>⚙️ Physical Logistics</span>
+            <span className="text-[10px] text-slate-400 font-mono">Mk.{result.logistics.selected_tier} Cap</span>
+          </h4>
+          <div className="grid grid-cols-3 gap-1.5 text-center font-mono">
+            <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <div className="text-white font-bold text-sm">{result.logistics.total_lanes}</div>
+              <div className="text-[9px] text-slate-400 uppercase">Lanes</div>
+            </div>
+            <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <div className="text-white font-bold text-sm">{result.logistics.total_splitters}</div>
+              <div className="text-[9px] text-slate-400 uppercase">Splitters</div>
+            </div>
+            <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
+              <div className="text-white font-bold text-sm">{result.logistics.total_mergers}</div>
+              <div className="text-[9px] text-slate-400 uppercase">Mergers</div>
+            </div>
+          </div>
+          {result.logistics.power_shards_total > 0 && (
+            <div className="flex justify-between items-center bg-amber-950/40 border border-amber-800/60 px-2.5 py-1.5 rounded-lg text-xs font-mono text-amber-300">
+              <span className="flex items-center gap-1.5">
+                <span>💎</span>
+                <span>Power Shards:</span>
+              </span>
+              <span className="font-bold text-white bg-amber-600 px-2 py-0.5 rounded text-[11px]">
+                {result.logistics.power_shards_total}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 7. Conveyor Logistics & Parallel Belt Feedback */}
       <div>
         <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
           🛤️ Conveyor Logistics &amp; Tiers

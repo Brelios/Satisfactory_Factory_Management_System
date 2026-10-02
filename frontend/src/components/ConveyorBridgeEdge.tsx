@@ -16,6 +16,8 @@ export interface ConveyorBridgeEdgeData extends Record<string, unknown> {
   detailTooltip?: string;
   labelX?: number;
   labelY?: number;
+  isOverCap?: boolean;
+  isHighlighted?: boolean;
 }
 
 /**
@@ -85,6 +87,8 @@ export default function ConveyorBridgeEdge({
   const edgeData = (data || {}) as ConveyorBridgeEdgeData;
   const edgeColor = edgeData.edgeColor || "#38bdf8";
   const isMultiBelt = Boolean(edgeData.isMultiBelt);
+  const shortLabel = edgeData.shortLabel;
+  const detailTooltip = edgeData.detailTooltip;
 
   let pathPoints: { x: number; y: number }[] = [];
 
@@ -93,11 +97,21 @@ export default function ConveyorBridgeEdge({
     wps[0] = { x: sourceX, y: sourceY };
     wps[wps.length - 1] = { x: targetX, y: targetY };
 
-    if (wps.length === 4) {
+    if (wps.length === 2 && Math.abs(sourceY - targetY) >= 3) {
+      // 2-segment connection with vertical difference: enforce orthogonal jog instead of diagonal
+      const midX = (sourceX + targetX) / 2;
+      pathPoints = [
+        { x: sourceX, y: sourceY },
+        { x: midX, y: sourceY },
+        { x: midX, y: targetY },
+        { x: targetX, y: targetY },
+      ];
+    } else if (wps.length === 4) {
       // 3-segment orthogonal: source -> (turnX, sourceY) -> (turnX, targetY) -> target
       const turnX = wps[1].x;
       wps[1] = { x: turnX, y: sourceY };
       wps[2] = { x: turnX, y: targetY };
+      pathPoints = wps;
     } else if (wps.length === 6) {
       // 5-segment transit: source -> (turnX1, sourceY) -> (turnX1, transitY) -> (turnX2, transitY) -> (turnX2, targetY) -> target
       const turnX1 = wps[1].x;
@@ -107,8 +121,10 @@ export default function ConveyorBridgeEdge({
       wps[2] = { x: turnX1, y: transitY };
       wps[3] = { x: turnX2, y: transitY };
       wps[4] = { x: turnX2, y: targetY };
+      pathPoints = wps;
+    } else {
+      pathPoints = wps;
     }
-    pathPoints = wps;
   } else if (Math.abs(sourceY - targetY) < 3) {
     // Pure horizontal straight line
     pathPoints = [
@@ -163,8 +179,9 @@ export default function ConveyorBridgeEdge({
     }
   }
 
-  const shortLabel = edgeData.shortLabel;
-  const detailTooltip = edgeData.detailTooltip;
+  const isOverCap = Boolean(edgeData.isOverCap);
+  const isHighlighted = Boolean(edgeData.isHighlighted);
+  const strokeColor = isHighlighted ? "#f59e0b" : isOverCap ? "#ef4444" : edgeColor;
 
   return (
     <>
@@ -174,10 +191,11 @@ export default function ConveyorBridgeEdge({
         path={path}
         style={{
           ...style,
-          stroke: edgeColor,
-          strokeWidth: isMultiBelt ? 3 : 2.2,
+          stroke: strokeColor,
+          strokeWidth: isHighlighted ? 4.5 : isOverCap ? 3.5 : isMultiBelt ? 3 : 2.2,
           strokeLinecap: "round",
           strokeLinejoin: "round",
+          filter: isHighlighted ? "drop-shadow(0 0 6px rgba(245, 158, 11, 0.8))" : undefined,
         }}
         markerEnd={markerEnd}
       />
@@ -196,15 +214,19 @@ export default function ConveyorBridgeEdge({
           >
             {/* Pill Label */}
             <div
-              className="flex items-center gap-1.5 px-2 py-0.5 rounded shadow-lg text-[10px] font-mono font-medium text-slate-200 border transition-all whitespace-nowrap select-none group-hover:scale-105"
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded shadow-lg text-[10px] font-mono font-semibold border transition-all whitespace-nowrap select-none group-hover:scale-105 ${
+                isOverCap
+                  ? "bg-red-950 text-red-100 border-red-500 shadow-red-950/80 animate-pulse"
+                  : "text-slate-200"
+              }`}
               style={{
-                backgroundColor: "#090d16",
-                borderColor: edgeColor,
+                backgroundColor: isOverCap ? "#450a0a" : "#090d16",
+                borderColor: isOverCap ? "#ef4444" : edgeColor,
               }}
             >
               <span
                 className="w-1.5 h-1.5 rounded-full shrink-0"
-                style={{ backgroundColor: edgeColor }}
+                style={{ backgroundColor: isOverCap ? "#ef4444" : edgeColor }}
               />
               <span>{shortLabel}</span>
             </div>
@@ -213,7 +235,7 @@ export default function ConveyorBridgeEdge({
             {detailTooltip && (
               <div className="hidden group-hover:flex flex-col absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-40 pointer-events-none">
                 <div className="bg-slate-900 border border-slate-700 text-slate-200 text-[10px] font-mono rounded px-2.5 py-1.5 shadow-2xl whitespace-nowrap space-y-0.5">
-                  {detailTooltip.split("\n").map((line, idx) => (
+                  {detailTooltip.split("\n").map((line: string, idx: number) => (
                     <div
                       key={idx}
                       className={idx === 0 ? "font-semibold text-white" : "text-amber-400"}
