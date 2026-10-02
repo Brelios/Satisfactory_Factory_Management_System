@@ -18,11 +18,13 @@ import SplitterNode from "./SplitterNode";
 import MergerNode from "./MergerNode";
 import ConveyorBridgeEdge from "./ConveyorBridgeEdge";
 import { getItemColor, formatItemName } from "@/lib/colors";
+import { FACTORY_PRESETS, type FactoryPreset } from "@/lib/presets";
 
 interface BlueprintCanvasProps {
   result: SolveResponse | null;
   isLoading: boolean;
   items: GameItem[];
+  onSelectPreset?: (preset: FactoryPreset) => void;
 }
 
 const nodeTypes = {
@@ -49,8 +51,13 @@ const ROW_SPACING = 320; // Vertical row pitch
 const NODE_OFFSET_X = 420; // Starting X after raw resource miners
 const SPLITTER_X_OFFSET = 320; // Splitter X distance from its source machine
 
-export default function BlueprintCanvas({ result, isLoading }: BlueprintCanvasProps) {
+export default function BlueprintCanvas({
+  result,
+  isLoading,
+  onSelectPreset,
+}: BlueprintCanvasProps) {
   const [legendOpen, setLegendOpen] = useState(true);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   const { initialNodes, initialEdges, activeItems } = useMemo(() => {
     if (!result || !result.steps.length) {
@@ -640,6 +647,82 @@ export default function BlueprintCanvas({ result, isLoading }: BlueprintCanvasPr
     };
   }, [result]);
 
+  // Compute upstream/downstream highlighted subgraphs when a node is clicked
+  const { highlightedNodes, highlightedEdges } = useMemo(() => {
+    if (!selectedNodeId) return { highlightedNodes: null, highlightedEdges: null };
+
+    const hNodes = new Set<string>([selectedNodeId]);
+    const hEdges = new Set<string>();
+
+    // BFS Upstream
+    const upstreamQueue = [selectedNodeId];
+    while (upstreamQueue.length > 0) {
+      const curr = upstreamQueue.shift()!;
+      initialEdges.forEach((e) => {
+        if (e.target === curr) {
+          hEdges.add(e.id);
+          if (!hNodes.has(e.source)) {
+            hNodes.add(e.source);
+            upstreamQueue.push(e.source);
+          }
+        }
+      });
+    }
+
+    // BFS Downstream
+    const downstreamQueue = [selectedNodeId];
+    while (downstreamQueue.length > 0) {
+      const curr = downstreamQueue.shift()!;
+      initialEdges.forEach((e) => {
+        if (e.source === curr) {
+          hEdges.add(e.id);
+          if (!hNodes.has(e.target)) {
+            hNodes.add(e.target);
+            downstreamQueue.push(e.target);
+          }
+        }
+      });
+    }
+
+    return { highlightedNodes: hNodes, highlightedEdges: hEdges };
+  }, [selectedNodeId, initialEdges]);
+
+  // Apply dimming styles to nodes and edges based on highlighting
+  const displayNodes = useMemo(() => {
+    if (!highlightedNodes) return initialNodes;
+    return initialNodes.map((n) => ({
+      ...n,
+      style: {
+        ...n.style,
+        opacity: highlightedNodes.has(n.id) ? 1 : 0.18,
+        transition: "opacity 0.25s ease",
+      },
+    }));
+  }, [initialNodes, highlightedNodes]);
+
+  const displayEdges = useMemo(() => {
+    if (!highlightedEdges) return initialEdges;
+    return initialEdges.map((e) => ({
+      ...e,
+      style: {
+        ...e.style,
+        opacity: highlightedEdges.has(e.id) ? 1 : 0.12,
+        transition: "opacity 0.25s ease",
+      },
+    }));
+  }, [initialEdges, highlightedEdges]);
+
+  const downloadSvg = () => {
+    if (!result?.blueprint_svg) return;
+    const blob = new Blob([result.blueprint_svg], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "satisfactory_factory_blueprint.svg";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (isLoading) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 border border-slate-700 rounded-lg text-sky-400">
@@ -649,12 +732,48 @@ export default function BlueprintCanvas({ result, isLoading }: BlueprintCanvasPr
     );
   }
 
+  // Rich Onboarding Empty State with Presets
   if (!result || !result.steps.length) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 border border-slate-700 rounded-lg text-slate-500">
-        <div className="text-4xl mb-2">🏭</div>
-        <div className="text-lg font-medium text-slate-400">Configure resources and click Solve</div>
-        <div className="text-xs text-slate-500 mt-1">Specify available ore rates or target product quotas</div>
+      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-950 border border-slate-700 rounded-lg p-6 overflow-y-auto">
+        <div className="text-center max-w-lg mb-6">
+          <div className="text-5xl mb-3">🏭</div>
+          <h2 className="text-xl font-bold text-white mb-1.5">
+            Satisfactory Factory Blueprint Builder
+          </h2>
+          <p className="text-xs text-slate-400">
+            Configure raw resources or target quotas on the left, or choose an example preset to see an optimal blueprint in one click:
+          </p>
+        </div>
+
+        {/* Quick-Start Preset Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-w-4xl w-full">
+          {FACTORY_PRESETS.map((preset) => (
+            <div
+              key={preset.id}
+              onClick={() => onSelectPreset && onSelectPreset(preset)}
+              className="bg-slate-900/90 hover:bg-slate-800/90 border border-slate-700 hover:border-sky-500 rounded-xl p-3.5 cursor-pointer transition-all shadow-lg hover:shadow-sky-950/40 text-left group select-none"
+            >
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-xl group-hover:scale-110 transition-transform">
+                  {preset.icon}
+                </span>
+                <span className="font-bold text-white text-xs leading-tight">
+                  {preset.name}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-snug mb-3">
+                {preset.subtitle}
+              </p>
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-[10px] font-mono">
+                <span className="text-slate-500 capitalize">{preset.mode.replace("_", " ")}</span>
+                <span className="text-sky-400 font-bold group-hover:translate-x-0.5 transition-transform">
+                  Load Preset →
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -662,10 +781,14 @@ export default function BlueprintCanvas({ result, isLoading }: BlueprintCanvasPr
   return (
     <div className="w-full h-full bg-slate-950 border border-slate-700 rounded-lg overflow-hidden relative">
       <ReactFlow
-        nodes={initialNodes}
-        edges={initialEdges}
+        nodes={displayNodes}
+        edges={displayEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
+        onNodeClick={(_, node) =>
+          setSelectedNodeId((prev) => (prev === node.id ? null : node.id))
+        }
+        onPaneClick={() => setSelectedNodeId(null)}
         fitView
         minZoom={0.15}
         maxZoom={2.5}
@@ -686,7 +809,28 @@ export default function BlueprintCanvas({ result, isLoading }: BlueprintCanvasPr
         />
       </ReactFlow>
 
-      {/* Floating Material Color Legend */}
+      {/* Floating Canvas Action Toolbar (Top-Right) */}
+      <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
+        {selectedNodeId && (
+          <button
+            onClick={() => setSelectedNodeId(null)}
+            className="px-2.5 py-1.5 bg-slate-800/90 hover:bg-slate-700 text-sky-400 border border-slate-700 rounded-lg text-xs font-mono shadow-xl transition-all"
+            title="Clear upstream/downstream highlight"
+          >
+            Clear Highlight &times;
+          </button>
+        )}
+        <button
+          onClick={downloadSvg}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 rounded-lg text-xs font-mono shadow-xl transition-all"
+          title="Download vector SVG blueprint"
+        >
+          <span>📥</span>
+          <span>Download SVG</span>
+        </button>
+      </div>
+
+      {/* Floating Material Color Legend (Bottom-Left) */}
       {activeItems.length > 0 && (
         <div className="absolute bottom-4 left-4 z-30 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl shadow-2xl p-3 max-w-[280px] select-none transition-all">
           <div className="flex items-center justify-between pb-1.5 border-b border-slate-800 mb-2">

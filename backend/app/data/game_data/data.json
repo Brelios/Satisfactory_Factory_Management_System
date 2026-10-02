@@ -89,6 +89,13 @@
       "sink_points": 0,
       "icon_color": "#3D3D3D"
     },
+    "uranium": {
+      "display_name": "Uranium",
+      "form": "solid",
+      "is_resource": true,
+      "sink_points": 35,
+      "icon_color": "#22C55E"
+    },
     "iron_ingot": {
       "display_name": "Iron Ingot",
       "form": "solid",
