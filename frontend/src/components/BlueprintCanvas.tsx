@@ -47,10 +47,10 @@ const SPLITTER_WIDTH = 155;
 const SPLITTER_HEIGHT = 90;
 
 // Spacing constants
-const COL_SPACING = 920; // Horizontal column pitch
 const ROW_SPACING = 350; // Vertical row pitch
-const NODE_OFFSET_X = 520; // Starting X after raw resource miners
-const SPLITTER_X_OFFSET = 420; // Splitter X distance from its source machine (130px gap)
+const NODE_OFFSET_X = 850; // Starting X after raw resource miners
+const SPLITTER_X_OFFSET = 560; // Splitter X distance from its source machine (270px gap for trunk pill)
+const SPLITTER_STEP_X = 480; // Distance between chained splitters (325px gap for pass-through pill)
 
 export default function BlueprintCanvas({
   result,
@@ -135,9 +135,52 @@ export default function BlueprintCanvas({
       1
     );
 
+    // 3b. Compute dynamic column widths & positions based on machine outgoing connections
+    const MAX_OUT_PER_SPLITTER = 2;
+    const colWidths: Record<number, number> = {};
+    sortedColKeys.forEach((colIdx) => {
+      const stepIdsInCol = columns[colIdx] || [];
+      let maxSplitters = 0;
+      stepIdsInCol.forEach((sId) => {
+        const outConns = result.connections.filter((c) => c.from_step === sId);
+        const outGroups: Record<string, number> = {};
+        outConns.forEach((c) => {
+          outGroups[c.item] = (outGroups[c.item] || 0) + 1;
+        });
+        Object.values(outGroups).forEach((cnt) => {
+          if (cnt > 1) {
+            const numChunks = Math.ceil(cnt / MAX_OUT_PER_SPLITTER);
+            if (numChunks > maxSplitters) maxSplitters = numChunks;
+          }
+        });
+      });
+
+      if (maxSplitters >= 2) {
+        colWidths[colIdx] =
+          SPLITTER_X_OFFSET +
+          (maxSplitters - 1) * SPLITTER_STEP_X +
+          SPLITTER_WIDTH +
+          260;
+      } else if (maxSplitters === 1) {
+        colWidths[colIdx] = SPLITTER_X_OFFSET + SPLITTER_WIDTH + 260;
+      } else {
+        colWidths[colIdx] = 720;
+      }
+    });
+
+    const colXPositions: Record<number, number> = {};
+    let curX = NODE_OFFSET_X;
+    sortedColKeys.forEach((colIdx) => {
+      colXPositions[colIdx] = curX;
+      curX += colWidths[colIdx] || 980;
+    });
+
     // 4. Place Machine Nodes
     const stepLookup = new Map(result.steps.map((s) => [s.step_id, s]));
-    const machinePositions: Record<string, { x: number; y: number; colIdx: number; rowIdx: number }> = {};
+    const machinePositions: Record<
+      string,
+      { x: number; y: number; colIdx: number; rowIdx: number }
+    > = {};
 
     sortedColKeys.forEach((colIdx) => {
       const stepIdsInCol = columns[colIdx];
@@ -148,7 +191,7 @@ export default function BlueprintCanvas({
         const step = stepLookup.get(stepId);
         if (!step) return;
 
-        const x = NODE_OFFSET_X + colIdx * COL_SPACING;
+        const x = colXPositions[colIdx] ?? (NODE_OFFSET_X + colIdx * 980);
         const y = yOffset + rowIdx * ROW_SPACING;
         machinePositions[step.step_id] = { x, y, colIdx, rowIdx };
 
@@ -215,7 +258,11 @@ export default function BlueprintCanvas({
     const allocateCorridorTrack = (colIdx: number, baseOffset = 35): number => {
       if (!corridorTrackCounts[colIdx]) corridorTrackCounts[colIdx] = 0;
       const trackIdx = corridorTrackCounts[colIdx]++;
-      const colBaseX = NODE_OFFSET_X + colIdx * COL_SPACING + SPLITTER_X_OFFSET + SPLITTER_WIDTH + baseOffset;
+      const colBaseX =
+        (colXPositions[colIdx] ?? NODE_OFFSET_X) +
+        (colWidths[colIdx] ?? 980) -
+        220 +
+        baseOffset;
       return colBaseX + (trackIdx % 6) * 24;
     };
 
@@ -257,29 +304,48 @@ export default function BlueprintCanvas({
           ? `⚠️ ${totalRate.toFixed(0)}/m (> Mk.${selectedTier} ${tierCap}/m - needs ${Math.ceil(totalRate / tierCap)} lanes)`
           : `${itemName} ${totalRate.toFixed(0)}/${tierCap} (${trunkUtil}%)`;
 
-        // If conns.length > 3, chain splitters so NO splitter has > 3 outputs
-        const MAX_OUT_PER_SPLITTER = 2;
+        // Sort connections so destination in same row (if any) is placed in the last chunk
+        const sortedConns = [...conns].sort((a, b) => {
+          const rowA = machinePositions[a.to_step]?.rowIdx ?? 99;
+          const rowB = machinePositions[b.to_step]?.rowIdx ?? 99;
+          const isSameRowA = rowA === fromPos.rowIdx;
+          const isSameRowB = rowB === fromPos.rowIdx;
+          if (isSameRowA && !isSameRowB) return 1;
+          if (!isSameRowA && isSameRowB) return -1;
+          return rowA - rowB;
+        });
+
+        // If conns.length > 2, chain splitters so NO splitter has > 3 ports (2 outputs + 1 pass-through)
         const splitterChunks: (typeof conns)[] = [];
-        for (let i = 0; i < conns.length; i += MAX_OUT_PER_SPLITTER) {
-          splitterChunks.push(conns.slice(i, i + MAX_OUT_PER_SPLITTER));
+        for (let i = 0; i < sortedConns.length; i += MAX_OUT_PER_SPLITTER) {
+          splitterChunks.push(sortedConns.slice(i, i + MAX_OUT_PER_SPLITTER));
         }
 
         let prevSplitterId: string | null = null;
         let prevSplitterX = fromPos.x + SPLITTER_X_OFFSET;
+        let prevSplitterY = fromPos.y;
+        let prevSplitterHeight = SPLITTER_HEIGHT;
+        let prevSplitterOutputsCount = 1;
         let runningFeedRate = totalRate;
 
         splitterChunks.forEach((chunk, chunkIdx) => {
           const sId = `splitter-${fromStepId}-${itemId}-${chunkIdx + 1}`;
-          const sX = fromPos.x + SPLITTER_X_OFFSET + chunkIdx * 190;
-          const sHeight = Math.max(90, 48 + (chunk.length + (chunkIdx < splitterChunks.length - 1 ? 1 : 0)) * 26);
+          const sX = fromPos.x + SPLITTER_X_OFFSET + chunkIdx * SPLITTER_STEP_X;
+          const sHeight = Math.max(
+            90,
+            48 + (chunk.length + (chunkIdx < splitterChunks.length - 1 ? 1 : 0)) * 26
+          );
           const sY = fromPos.y + (NODE_HEIGHT - sHeight) / 2;
 
           const sOutputs = chunk.map((c) => ({ to: c.to_step, rate: c.rate }));
           if (chunkIdx < splitterChunks.length - 1) {
-            const passThroughRate = conns
+            const passThroughRate = sortedConns
               .slice((chunkIdx + 1) * MAX_OUT_PER_SPLITTER)
               .reduce((sum, c) => sum + c.rate, 0);
-            sOutputs.push({ to: `splitter-${fromStepId}-${itemId}-${chunkIdx + 2}`, rate: passThroughRate });
+            sOutputs.push({
+              to: `splitter-${fromStepId}-${itemId}-${chunkIdx + 2}`,
+              rate: passThroughRate,
+            });
           }
 
           nodes.push({
@@ -325,33 +391,66 @@ export default function BlueprintCanvas({
                 labelY: machToSplitterSrc.y - 14,
                 isOverCap: isTrunkOverCap,
               },
-              markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor, width: 14, height: 14 },
+              markerEnd: {
+                type: MarkerType.ArrowClosed,
+                color: edgeColor,
+                width: 14,
+                height: 14,
+              },
             });
           } else if (prevSplitterId) {
-            // Manifold hop between chained splitters: straight horizontal line
-            const hopSrc = { x: prevSplitterX + SPLITTER_WIDTH, y: sY + sHeight * 0.5 };
+            // Manifold hop between chained splitters
+            const prevPassThroughTopPercent =
+              prevSplitterOutputsCount === 1
+                ? 0.5
+                : 0.28 +
+                  ((prevSplitterOutputsCount - 1) /
+                    (prevSplitterOutputsCount - 1)) *
+                    0.44; // 72%
+            const hopSrc = {
+              x: prevSplitterX + SPLITTER_WIDTH,
+              y:
+                prevSplitterY +
+                prevSplitterHeight * prevPassThroughTopPercent,
+            };
             const hopDst = { x: sX, y: sY + sHeight * 0.5 };
-            const hopUtil = tierCap > 0 ? Math.min(100, Math.round((runningFeedRate / tierCap) * 100)) : 100;
+            const hopUtil =
+              tierCap > 0
+                ? Math.min(100, Math.round((runningFeedRate / tierCap) * 100))
+                : 100;
+
+            const jogX = prevSplitterX + SPLITTER_WIDTH + 80;
+            const waypoints = [
+              hopSrc,
+              { x: jogX, y: hopSrc.y },
+              { x: jogX, y: hopDst.y },
+              hopDst,
+            ];
 
             edges.push({
               id: `e-${prevSplitterId}-${sId}`,
               source: prevSplitterId,
-              sourceHandle: `out-${MAX_OUT_PER_SPLITTER}`,
+              sourceHandle: `out-${prevSplitterOutputsCount - 1}`,
               target: sId,
               targetHandle: "input",
               type: "conveyorBridge",
               data: {
-                waypoints: [hopSrc, hopDst],
+                waypoints,
                 isMultiBelt: false,
                 beltTier: getTierForRate(runningFeedRate),
                 edgeColor,
                 shortLabel: `${runningFeedRate.toFixed(0)}/${tierCap} (${hopUtil}%)`,
                 detailTooltip: `Manifold pass-through: ${runningFeedRate.toFixed(1)}/m`,
-                labelX: (hopSrc.x + hopDst.x) / 2,
-                labelY: hopSrc.y - 14,
+                labelX: (jogX + hopDst.x) / 2,
+                labelY: hopDst.y - 14,
                 isOverCap: !enforceLimit && runningFeedRate > tierCap + 1e-4,
               },
-              markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor, width: 14, height: 14 },
+              markerEnd: {
+                type: MarkerType.ArrowClosed,
+                color: edgeColor,
+                width: 14,
+                height: 14,
+              },
             });
           }
 
@@ -363,7 +462,10 @@ export default function BlueprintCanvas({
             const targetX = destPos ? destPos.x : sX + 350;
 
             const splitCount = sOutputs.length;
-            const topPercent = splitCount === 1 ? 0.5 : 0.28 + (cIdx / (splitCount - 1)) * 0.44;
+            const topPercent =
+              splitCount === 1
+                ? 0.5
+                : 0.28 + (cIdx / (splitCount - 1)) * 0.44;
             const splitBranchSrc = {
               x: sX + SPLITTER_WIDTH,
               y: sY + sHeight * topPercent,
@@ -371,47 +473,62 @@ export default function BlueprintCanvas({
 
             const isDirectNeighbor = destDepth === fromDepth + 1;
             let waypoints: { x: number; y: number }[] = [];
-            let labelX = targetX - 80;
+            let labelX = targetX - 85;
             let labelY = targetY;
 
-            const minCorridorX = sX + SPLITTER_WIDTH + 35;
-            const allocatedX = allocateCorridorTrack(fromDepth, 35);
-            const turnX = Math.max(minCorridorX, allocatedX);
+            const isStraightRow =
+              Math.abs(splitBranchSrc.y - targetY) < 3;
 
-            if (isDirectNeighbor) {
-              waypoints = [
-                splitBranchSrc,
-                { x: turnX, y: splitBranchSrc.y },
-                { x: turnX, y: targetY },
-                { x: targetX, y: targetY },
-              ];
-              labelX = turnX + (targetX - turnX) * 0.45;
-              labelY = targetY;
+            if (isStraightRow && chunkIdx === splitterChunks.length - 1) {
+              // Last splitter connecting straight to same row machine
+              waypoints = [splitBranchSrc, { x: targetX, y: targetY }];
+              labelX = (splitBranchSrc.x + targetX) / 2;
+              labelY = targetY - 14;
             } else {
-              const transitChannelY =
-                ROW_SPACING * 0.5 +
-                Math.min(fromPos.rowIdx, destPos?.rowIdx ?? 0) * ROW_SPACING +
-                ((transitChannelCounter++ % 4) - 2) * 22;
+              const turnX = sX + SPLITTER_WIDTH + 45 + (cIdx % 2) * 24;
 
-              const turnX2 = targetX - 50 - (cIdx % 3) * 20;
-              waypoints = [
-                splitBranchSrc,
-                { x: turnX, y: splitBranchSrc.y },
-                { x: turnX, y: transitChannelY },
-                { x: turnX2, y: transitChannelY },
-                { x: turnX2, y: targetY },
-                { x: targetX, y: targetY },
-              ];
-              labelX = turnX2 + (targetX - turnX2) * 0.5;
-              labelY = targetY;
+              if (isDirectNeighbor) {
+                waypoints = [
+                  splitBranchSrc,
+                  { x: turnX, y: splitBranchSrc.y },
+                  { x: turnX, y: targetY },
+                  { x: targetX, y: targetY },
+                ];
+                labelX = turnX + (targetX - turnX) * 0.5;
+                labelY = targetY - 14;
+              } else {
+                const transitChannelY =
+                  ROW_SPACING * 0.5 +
+                  Math.min(fromPos.rowIdx, destPos?.rowIdx ?? 0) *
+                    ROW_SPACING +
+                  ((transitChannelCounter++ % 4) - 2) * 22;
+
+                const turnX2 = targetX - 60 - (cIdx % 3) * 20;
+                waypoints = [
+                  splitBranchSrc,
+                  { x: turnX, y: splitBranchSrc.y },
+                  { x: turnX, y: transitChannelY },
+                  { x: turnX2, y: transitChannelY },
+                  { x: turnX2, y: targetY },
+                  { x: targetX, y: targetY },
+                ];
+                labelX = turnX2 + (targetX - turnX2) * 0.5;
+                labelY = targetY - 14;
+              }
             }
 
             const branchIsOver = !enforceLimit && conn.rate > tierCap + 1e-4;
-            const branchUtil = tierCap > 0 ? Math.min(100, Math.round((conn.rate / tierCap) * 100)) : 100;
+            const branchUtil =
+              tierCap > 0
+                ? Math.min(100, Math.round((conn.rate / tierCap) * 100))
+                : 100;
             const branchLabel = branchIsOver
               ? `⚠️ ↳ ${conn.rate.toFixed(0)}/m (> ${tierCap})`
               : `↳ ${conn.rate.toFixed(0)}/${tierCap} (${branchUtil}%)`;
-            const beltInfo = conn.belt_count > 1 ? `${conn.belt_count}× Mk.${conn.belt_tier}` : `Mk.${conn.belt_tier}`;
+            const beltInfo =
+              conn.belt_count > 1
+                ? `${conn.belt_count}× Mk.${conn.belt_tier}`
+                : `Mk.${conn.belt_tier}`;
 
             edges.push({
               id: `e-${sId}-${conn.to_step}-${cIdx}`,
@@ -431,7 +548,12 @@ export default function BlueprintCanvas({
                 labelY,
                 isOverCap: branchIsOver,
               },
-              markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor, width: 14, height: 14 },
+              markerEnd: {
+                type: MarkerType.ArrowClosed,
+                color: edgeColor,
+                width: 14,
+                height: 14,
+              },
             });
           });
 
@@ -439,6 +561,9 @@ export default function BlueprintCanvas({
           runningFeedRate -= chunkUsed;
           prevSplitterId = sId;
           prevSplitterX = sX;
+          prevSplitterY = sY;
+          prevSplitterHeight = sHeight;
+          prevSplitterOutputsCount = sOutputs.length;
         });
       } else {
         // SINGLE BRANCH FEED: Direct conveyor between machines
@@ -473,7 +598,7 @@ export default function BlueprintCanvas({
               { x: targetX, y: targetY },
             ];
             labelX = turnX + (targetX - turnX) * 0.45;
-            labelY = targetY;
+            labelY = targetY - 14;
           }
         } else {
           const transitChannelY =
@@ -493,7 +618,7 @@ export default function BlueprintCanvas({
             { x: targetX, y: targetY },
           ];
           labelX = turnX2 + (targetX - turnX2) * 0.5;
-          labelY = targetY;
+          labelY = targetY - 14;
         }
 
         const directIsOver = !enforceLimit && conn.rate > tierCap + 1e-4;
@@ -550,7 +675,7 @@ export default function BlueprintCanvas({
       if (consumingSteps.length > 1) {
         // Resource feeds multiple lines -> insert Splitter in resource's lane
         const splitterId = `res-splitter-${item}`;
-        const splitterX = 220;
+        const splitterX = 420;
         const splitterY = y + 20;
         const resIsOver = !enforceLimit && rate > tierCap + 1e-4;
         const resUtil = tierCap > 0 ? Math.min(100, Math.round((rate / tierCap) * 100)) : 100;
@@ -612,7 +737,25 @@ export default function BlueprintCanvas({
             y: splitterY + SPLITTER_HEIGHT * topPercent,
           };
 
-          const turnX = splitterX + SPLITTER_WIDTH + 40 + (sIdx % 3) * 22;
+          const isStraight = Math.abs(splitBranchSrc.y - targetY) < 3;
+          let waypoints: { x: number; y: number }[] = [];
+          let labelX = (splitBranchSrc.x + targetX) / 2;
+          let labelY = targetY - 14;
+
+          if (isStraight) {
+            waypoints = [splitBranchSrc, { x: targetX, y: targetY }];
+          } else {
+            const turnX = splitterX + SPLITTER_WIDTH + 45 + (sIdx % 2) * 24;
+            waypoints = [
+              splitBranchSrc,
+              { x: turnX, y: splitBranchSrc.y },
+              { x: turnX, y: targetY },
+              { x: targetX, y: targetY },
+            ];
+            labelX = turnX + (targetX - turnX) * 0.5;
+            labelY = targetY - 14;
+          }
+
           const branchIsOver = !enforceLimit && consumeRate > tierCap + 1e-4;
           const branchUtil = tierCap > 0 ? Math.min(100, Math.round((consumeRate / tierCap) * 100)) : 100;
 
@@ -624,19 +767,14 @@ export default function BlueprintCanvas({
             targetHandle: item,
             type: "conveyorBridge",
             data: {
-              waypoints: [
-                splitBranchSrc,
-                { x: turnX, y: splitBranchSrc.y },
-                { x: turnX, y: targetY },
-                { x: targetX, y: targetY },
-              ],
+              waypoints,
               isMultiBelt: false,
               beltTier: getTierForRate(consumeRate),
               edgeColor: itemColor,
               shortLabel: branchIsOver ? `⚠️ ↳ ${consumeRate.toFixed(0)}/m (> ${tierCap})` : `↳ ${consumeRate.toFixed(0)}/${tierCap} (${branchUtil}%)`,
               detailTooltip: `${itemName} • ${consumeRate.toFixed(1)}/m\nFeeds into ${step.recipe_name}`,
-              labelX: turnX + (targetX - turnX) * 0.45,
-              labelY: targetY,
+              labelX,
+              labelY,
               isOverCap: branchIsOver,
             },
             markerEnd: { type: MarkerType.ArrowClosed, color: itemColor, width: 14, height: 14 },
@@ -649,7 +787,25 @@ export default function BlueprintCanvas({
         const targetY = getDestinationHandleY(step.step_id, item);
         const targetX = destPos ? destPos.x : NODE_OFFSET_X;
         const srcPt = { x: 40 + 112, y: y + 25 + 56 };
-        const turnX = 220;
+        const turnX = 420;
+
+        const isStraightRow = Math.abs(srcPt.y - targetY) < 3;
+        let waypoints: { x: number; y: number }[] = [];
+        let labelX = (srcPt.x + targetX) / 2;
+        let labelY = targetY - 14;
+
+        if (isStraightRow) {
+          waypoints = [srcPt, { x: targetX, y: targetY }];
+        } else {
+          waypoints = [
+            srcPt,
+            { x: turnX, y: srcPt.y },
+            { x: turnX, y: targetY },
+            { x: targetX, y: targetY },
+          ];
+          labelX = turnX + (targetX - turnX) * 0.5;
+          labelY = targetY - 14;
+        }
 
         const directIsOver = !enforceLimit && consumeRate > tierCap + 1e-4;
         const directUtil =
@@ -668,19 +824,14 @@ export default function BlueprintCanvas({
           targetHandle: item,
           type: "conveyorBridge",
           data: {
-            waypoints: [
-              srcPt,
-              { x: turnX, y: srcPt.y },
-              { x: turnX, y: targetY },
-              { x: targetX, y: targetY },
-            ],
+            waypoints,
             isMultiBelt: false,
             beltTier: getTierForRate(consumeRate),
             edgeColor: itemColor,
             shortLabel: directLabel,
             detailTooltip: `${itemName} • ${consumeRate.toFixed(1)}/m\nDirect extraction to ${step.recipe_name}`,
-            labelX: turnX + (targetX - turnX) * 0.45,
-            labelY: targetY,
+            labelX,
+            labelY,
             isOverCap: directIsOver,
           },
           markerEnd: {
@@ -696,7 +847,9 @@ export default function BlueprintCanvas({
     // 7. Output Product Nodes (Rightmost Column)
     const outputKeys = Object.keys(result.target_outputs);
     const maxColIdx = sortedColKeys.length ? Math.max(...sortedColKeys) : 0;
-    const outX = NODE_OFFSET_X + (maxColIdx + 1) * COL_SPACING + 40;
+    const lastColX = colXPositions[maxColIdx] ?? (NODE_OFFSET_X + maxColIdx * 980);
+    const lastColW = colWidths[maxColIdx] ?? 720;
+    const outX = lastColX + lastColW + 60;
     const outYOffset = ((maxRowsInAnyCol - outputKeys.length) * ROW_SPACING) / 2;
 
     outputKeys.forEach((item, oIdx) => {
@@ -729,7 +882,25 @@ export default function BlueprintCanvas({
             y: y + 25 + 40,
           };
 
-          const turnX = outX - 70;
+          const isStraightRow = Math.abs(srcPt.y - targetPt.y) < 3;
+          let waypoints: { x: number; y: number }[] = [];
+          let labelX = (srcPt.x + targetPt.x) / 2;
+          let labelY = targetPt.y - 14;
+
+          if (isStraightRow) {
+            waypoints = [srcPt, targetPt];
+          } else {
+            const turnX = fromPos.x + NODE_WIDTH + 60;
+            waypoints = [
+              srcPt,
+              { x: turnX, y: srcPt.y },
+              { x: turnX, y: targetPt.y },
+              targetPt,
+            ];
+            labelX = turnX + (targetPt.x - turnX) * 0.5;
+            labelY = targetPt.y - 14;
+          }
+
           const outIsOver = !enforceLimit && prodRate > tierCap + 1e-4;
           const outUtil = tierCap > 0 ? Math.min(100, Math.round((prodRate / tierCap) * 100)) : 100;
           const outLabel = outIsOver
@@ -744,19 +915,14 @@ export default function BlueprintCanvas({
             targetHandle: "input",
             type: "conveyorBridge",
             data: {
-              waypoints: [
-                srcPt,
-                { x: turnX, y: srcPt.y },
-                { x: turnX, y: targetPt.y },
-                targetPt,
-              ],
+              waypoints,
               isMultiBelt: false,
               beltTier: getTierForRate(prodRate),
               edgeColor: itemColor,
               shortLabel: outLabel,
               detailTooltip: `${itemName} • ${prodRate.toFixed(1)}/m\nOutput to factory storage`,
-              labelX: turnX + (targetPt.x - turnX) * 0.45,
-              labelY: targetPt.y,
+              labelX,
+              labelY,
               isOverCap: outIsOver,
             },
             markerEnd: { type: MarkerType.ArrowClosed, color: itemColor, width: 14, height: 14 },
