@@ -8,11 +8,68 @@ import {
 
 export interface ConveyorBridgeEdgeData extends Record<string, unknown> {
   turnX?: number;
-  jumps?: number[]; // list of X coordinates where horizontal segments jump over perpendicular lines
-  feedDesc?: string;
+  waypoints?: { x: number; y: number }[];
   isMultiBelt?: boolean;
   beltTier?: number;
   edgeColor?: string;
+  shortLabel?: string;
+  detailTooltip?: string;
+  labelX?: number;
+  labelY?: number;
+}
+
+/**
+ * Builds a rounded orthogonal SVG path through a series of points.
+ */
+function buildRoundedOrthogonalPath(
+  points: { x: number; y: number }[],
+  radius = 8
+): string {
+  if (points.length < 2) return "";
+  if (points.length === 2) {
+    return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+  }
+
+  let d = `M ${points[0].x} ${points[0].y}`;
+
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const next = points[i + 1];
+
+    const vIn = { x: curr.x - prev.x, y: curr.y - prev.y };
+    const vOut = { x: next.x - curr.x, y: next.y - curr.y };
+
+    const lenIn = Math.hypot(vIn.x, vIn.y);
+    const lenOut = Math.hypot(vOut.x, vOut.y);
+
+    if (lenIn < 1e-4 || lenOut < 1e-4) {
+      d += ` L ${curr.x} ${curr.y}`;
+      continue;
+    }
+
+    const dirIn = { x: vIn.x / lenIn, y: vIn.y / lenIn };
+    const dirOut = { x: vOut.x / lenOut, y: vOut.y / lenOut };
+
+    const r = Math.min(radius, lenIn / 2, lenOut / 2);
+
+    const cornerStart = {
+      x: curr.x - dirIn.x * r,
+      y: curr.y - dirIn.y * r,
+    };
+    const cornerEnd = {
+      x: curr.x + dirOut.x * r,
+      y: curr.y + dirOut.y * r,
+    };
+
+    d += ` L ${cornerStart.x} ${cornerStart.y}`;
+    d += ` Q ${curr.x} ${curr.y} ${cornerEnd.x} ${cornerEnd.y}`;
+  }
+
+  const last = points[points.length - 1];
+  d += ` L ${last.x} ${last.y}`;
+
+  return d;
 }
 
 export default function ConveyorBridgeEdge({
@@ -23,162 +80,133 @@ export default function ConveyorBridgeEdge({
   targetY,
   style = {},
   markerEnd,
-  label,
   data,
 }: EdgeProps) {
   const edgeData = (data || {}) as ConveyorBridgeEdgeData;
   const edgeColor = edgeData.edgeColor || "#38bdf8";
   const isMultiBelt = Boolean(edgeData.isMultiBelt);
-  const jumps = (edgeData.jumps || []).sort((a, b) => a - b);
 
-  // Determine turning point (turnX)
-  const turnX = edgeData.turnX !== undefined 
-    ? edgeData.turnX 
-    : sourceX + (targetX - sourceX) * 0.5;
+  let pathPoints: { x: number; y: number }[] = [];
 
-  const isStraightHorizontal = Math.abs(sourceY - targetY) < 3;
-
-  // Helper to draw horizontal segment with physics bridge jump arcs over crossing lines
-  const buildHorizontalWithJumps = (
-    startX: number,
-    endX: number,
-    y: number,
-    crossingXList: number[]
-  ): string => {
-    let d = "";
-    let currentX = startX;
-
-    // Filter crossings strictly between startX and endX with clearance
-    const validCrossings = crossingXList.filter(cx => cx > startX + 16 && cx < endX - 16);
-
-    for (const cx of validCrossings) {
-      if (cx > currentX) {
-        d += ` L ${cx - 8} ${y}`;
-        // Physics jump arc: semicircular bridge hopping up over the perpendicular line
-        // A rx ry x-axis-rotation large-arc sweep x y (sweep=1 curves upwards towards -Y)
-        d += ` A 8 8 0 0 1 ${cx + 8} ${y}`;
-        currentX = cx + 8;
-      }
-    }
-
-    d += ` L ${endX} ${y}`;
-    return d;
-  };
-
-  let path = "";
-  let labelX = (sourceX + targetX) / 2;
-  let labelY = (sourceY + targetY) / 2;
-
-  const crossingPoints: { x: number; y: number }[] = [];
-
-  if (isStraightHorizontal) {
-    // Pure horizontal straight conduit
-    path = `M ${sourceX} ${sourceY}`;
-    path += buildHorizontalWithJumps(sourceX, targetX, sourceY, jumps);
-    labelX = (sourceX + targetX) / 2;
-    labelY = sourceY;
-
-    jumps.forEach(jx => {
-      if (jx > sourceX + 16 && jx < targetX - 16) {
-        crossingPoints.push({ x: jx, y: sourceY });
-      }
-    });
+  if (edgeData.waypoints && edgeData.waypoints.length >= 2) {
+    pathPoints = edgeData.waypoints;
+  } else if (Math.abs(sourceY - targetY) < 3) {
+    // Pure horizontal straight line
+    pathPoints = [
+      { x: sourceX, y: sourceY },
+      { x: targetX, y: targetY },
+    ];
   } else {
-    // Orthogonal 3-segment conduit: Horizontal -> Vertical -> Horizontal
-    const r = Math.min(12, Math.abs(targetY - sourceY) / 2, Math.abs(turnX - sourceX) / 2);
-    const goingDown = targetY > sourceY;
+    // Standard 3-segment orthogonal jog
+    const turnX =
+      edgeData.turnX !== undefined
+        ? edgeData.turnX
+        : sourceX + (targetX - sourceX) * 0.5;
 
-    // Segment 1: from sourceX to turnX at sourceY
-    path = `M ${sourceX} ${sourceY}`;
-    const seg1Jumps = jumps.filter(jx => jx < turnX - r);
-    path += buildHorizontalWithJumps(sourceX, turnX - r, sourceY, seg1Jumps);
-
-    seg1Jumps.forEach(jx => {
-      if (jx > sourceX + 16 && jx < turnX - r) {
-        crossingPoints.push({ x: jx, y: sourceY });
-      }
-    });
-
-    // Corner 1: rounded turn from horizontal into vertical track
-    if (goingDown) {
-      path += ` Q ${turnX} ${sourceY} ${turnX} ${sourceY + r}`;
-      // Segment 2: vertical drop down the clear corridor track
-      path += ` L ${turnX} ${targetY - r}`;
-      // Corner 2: rounded turn from vertical into horizontal
-      path += ` Q ${turnX} ${targetY} ${turnX + r} ${targetY}`;
-    } else {
-      path += ` Q ${turnX} ${sourceY} ${turnX} ${sourceY - r}`;
-      path += ` L ${turnX} ${targetY + r}`;
-      path += ` Q ${turnX} ${targetY} ${turnX + r} ${targetY}`;
-    }
-
-    // Segment 3: horizontal run from turnX to targetX at targetY
-    const seg3Jumps = jumps.filter(jx => jx > turnX + r);
-    path += buildHorizontalWithJumps(turnX + r, targetX, targetY, seg3Jumps);
-
-    seg3Jumps.forEach(jx => {
-      if (jx > turnX + r && jx < targetX - 16) {
-        crossingPoints.push({ x: jx, y: targetY });
-      }
-    });
-
-    // Label placed on horizontal segment before or after turn
-    labelX = (turnX + targetX) / 2;
-    labelY = targetY;
+    pathPoints = [
+      { x: sourceX, y: sourceY },
+      { x: turnX, y: sourceY },
+      { x: turnX, y: targetY },
+      { x: targetX, y: targetY },
+    ];
   }
+
+  const path = buildRoundedOrthogonalPath(pathPoints, 10);
+
+  // Label positioning: use explicitly calculated coordinates if provided
+  let labelX = edgeData.labelX;
+  let labelY = edgeData.labelY;
+
+  if (labelX === undefined || labelY === undefined) {
+    if (pathPoints.length === 2) {
+      // Straight line midpoint
+      labelX = (sourceX + targetX) / 2;
+      labelY = sourceY;
+    } else {
+      // Pick longest horizontal segment for label
+      let longestSeg = { x: (sourceX + targetX) / 2, y: (sourceY + targetY) / 2, len: 0 };
+      for (let i = 0; i < pathPoints.length - 1; i++) {
+        const p1 = pathPoints[i];
+        const p2 = pathPoints[i + 1];
+        if (Math.abs(p1.y - p2.y) < 2) {
+          const segLen = Math.abs(p2.x - p1.x);
+          if (segLen > longestSeg.len) {
+            longestSeg = {
+              x: (p1.x + p2.x) / 2,
+              y: p1.y,
+              len: segLen,
+            };
+          }
+        }
+      }
+      labelX = longestSeg.x;
+      labelY = longestSeg.y;
+    }
+  }
+
+  const shortLabel = edgeData.shortLabel;
+  const detailTooltip = edgeData.detailTooltip;
 
   return (
     <>
-      {/* Base Conveyor Edge Path */}
+      {/* Conveyor Belt Path - Solid, distinct, high-visibility line */}
       <BaseEdge
         id={id}
         path={path}
         style={{
           ...style,
           stroke: edgeColor,
-          strokeWidth: isMultiBelt ? 2.5 : 1.8,
-          strokeDasharray: isMultiBelt ? "8,4" : undefined,
+          strokeWidth: isMultiBelt ? 3 : 2.2,
+          strokeLinecap: "round",
+          strokeLinejoin: "round",
         }}
         markerEnd={markerEnd}
       />
 
-      {/* Physics Overpass Bridge Visual Halos */}
-      {crossingPoints.map((pt, i) => (
-        <g key={`bridge-${id}-${i}`} className="pointer-events-none">
-          {/* Underpass gap shadow */}
-          <circle 
-            cx={pt.x} 
-            cy={pt.y} 
-            r={10} 
-            fill="#090d16" 
-            stroke={edgeColor} 
-            strokeWidth={1} 
-            strokeDasharray="2,2" 
-            opacity={0.9} 
-          />
-          {/* Overpass Bridge Icon Badge */}
-          <circle 
-            cx={pt.x} 
-            cy={pt.y - 7} 
-            r={3.5} 
-            fill={edgeColor} 
-            className="animate-pulse" 
-          />
-        </g>
-      ))}
-
-      {/* Edge Label Badge */}
-      {label && (
+      {/* Belt Pill Label with Hover Tooltip */}
+      {shortLabel && (
         <EdgeLabelRenderer>
           <div
             style={{
               position: "absolute",
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: "all",
+              zIndex: 10, // Below node cards (z-20) so it never covers cards
             }}
-            className="bg-slate-950/95 border border-slate-700/80 hover:border-sky-500 rounded px-2 py-1 shadow-lg text-[9.5px] font-mono text-slate-200 transition-colors whitespace-pre-line text-center z-10"
+            className="group relative cursor-pointer"
           >
-            {label}
+            {/* Pill Label */}
+            <div
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded shadow-lg text-[10px] font-mono font-medium text-slate-200 border transition-all whitespace-nowrap select-none group-hover:scale-105"
+              style={{
+                backgroundColor: "#090d16",
+                borderColor: edgeColor,
+              }}
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full shrink-0"
+                style={{ backgroundColor: edgeColor }}
+              />
+              <span>{shortLabel}</span>
+            </div>
+
+            {/* Hover Details Tooltip */}
+            {detailTooltip && (
+              <div className="hidden group-hover:flex flex-col absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-40 pointer-events-none">
+                <div className="bg-slate-900 border border-slate-700 text-slate-200 text-[10px] font-mono rounded px-2.5 py-1.5 shadow-2xl whitespace-nowrap space-y-0.5">
+                  {detailTooltip.split("\n").map((line, idx) => (
+                    <div
+                      key={idx}
+                      className={idx === 0 ? "font-semibold text-white" : "text-amber-400"}
+                    >
+                      {line}
+                    </div>
+                  ))}
+                </div>
+                {/* Tooltip beak */}
+                <div className="w-2 h-2 bg-slate-900 border-r border-b border-slate-700 rotate-45 self-center -mt-1" />
+              </div>
+            )}
           </div>
         </EdgeLabelRenderer>
       )}

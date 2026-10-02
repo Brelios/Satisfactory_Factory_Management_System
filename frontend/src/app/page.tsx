@@ -62,56 +62,88 @@ export default function Page() {
   }, []);
 
   const handleSolve = async () => {
-    setLoading(true);
     setError(null);
     setCompareVariants(null);
     setSelectedVariantLabel(null);
-    
+
+    const activeResources = resources.filter((r) => r.rate > 0);
+    const activeTargets = Object.entries(targetRates).filter(([_, rate]) => rate > 0);
+
+    if (mode === "resource_constrained" && activeResources.length === 0) {
+      setError("Please set at least one mining resource rate greater than 0/min.");
+      return;
+    }
+
+    if (mode === "target_driven" && activeTargets.length === 0) {
+      setError("Please set at least one target product rate greater than 0/min.");
+      return;
+    }
+
+    setLoading(true);
+
     try {
-      const resMap = Object.fromEntries(resources.filter(r => r.rate > 0).map(r => [r.item_id, r.rate]));
+      const resMap = Object.fromEntries(activeResources.map((r) => [r.item_id, r.rate]));
+      const targetsMap = Object.fromEntries(activeTargets);
       const req = {
         mode,
         resources: resMap,
-        targets: targetRates,
+        targets: targetsMap,
         target_items: targetItems,
         unlocked_alts: unlockedAlts,
         max_belt_tier: enforceBeltLimit ? maxBeltTier : undefined,
       };
-      
+
       const data = await solveProduction(req);
       setResult(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
   const handleCompare = async () => {
-    setComparing(true);
     setError(null);
-    
+
+    const activeResources = resources.filter((r) => r.rate > 0);
+    const activeTargets = Object.entries(targetRates).filter(([_, rate]) => rate > 0);
+
+    if (mode === "resource_constrained" && activeResources.length === 0) {
+      setError("Please set at least one mining resource rate greater than 0/min to compare.");
+      return;
+    }
+
+    if (mode === "target_driven" && activeTargets.length === 0) {
+      setError("Please set at least one target product rate greater than 0/min to compare.");
+      return;
+    }
+
+    setComparing(true);
+
     try {
-      const resMap = Object.fromEntries(resources.filter(r => r.rate > 0).map(r => [r.item_id, r.rate]));
+      const resMap = Object.fromEntries(activeResources.map((r) => [r.item_id, r.rate]));
+      const targetsMap = Object.fromEntries(activeTargets);
       const req = {
         mode,
         resources: resMap,
-        targets: targetRates,
+        targets: targetsMap,
         target_items: targetItems,
         unlocked_alts: unlockedAlts,
         max_belt_tier: enforceBeltLimit ? maxBeltTier : undefined,
       };
-      
+
       const data = await solveCompare(req);
       setCompareVariants(data.variants);
       setBestMachines(data.best_machines);
       setBestPower(data.best_power);
-      
+
       if (data.variants.length > 0) {
         selectVariant(data.variants[0]);
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
     } finally {
       setComparing(false);
     }

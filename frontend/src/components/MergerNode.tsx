@@ -1,6 +1,7 @@
 "use client";
 import React, { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { getItemColor, formatItemName } from "@/lib/colors";
 
 export interface MergerNodeData extends Record<string, unknown> {
   item: string;
@@ -9,43 +10,97 @@ export interface MergerNodeData extends Record<string, unknown> {
   beltTier: number;
 }
 
-const MergerNode = ({ data }: NodeProps<any>) => {
+const MergerNode = ({ data }: NodeProps) => {
   const nodeData = data as MergerNodeData;
-  const itemName = (nodeData.item || "").replace(/_/g, " ");
+  const itemColor = getItemColor(nodeData.item);
+  const itemName = formatItemName(nodeData.item);
+  const inputs = nodeData.inputs || [];
+  const inputCount = Math.max(inputs.length, 1);
 
   return (
-    <div className="bg-slate-900 border-2 border-cyan-500/80 rounded-lg p-2 text-white shadow-xl shadow-cyan-950/20 min-w-[130px] flex flex-col justify-between transition-transform hover:scale-105">
-      <Handle 
-        type="target" 
-        position={Position.Left} 
-        className="w-3 h-3 bg-cyan-400 border-2 border-slate-900 !-left-1.5" 
-      />
+    <div
+      className="relative z-20 bg-slate-900 border-2 rounded-xl p-2.5 text-white shadow-2xl w-[155px] flex flex-col justify-between transition-all hover:scale-105 select-none"
+      style={{ borderColor: itemColor }}
+    >
+      {/* Distinct Target Handles on Left for each incoming branch */}
+      {inputs.map((inp, idx) => {
+        const topPercent =
+          inputCount === 1
+            ? 50
+            : 28 + (idx / (inputCount - 1)) * 44;
+        return (
+          <Handle
+            key={idx}
+            id={`in-${idx}`}
+            type="target"
+            position={Position.Left}
+            style={{
+              top: `${topPercent}%`,
+              backgroundColor: itemColor,
+              borderColor: "#0f172a",
+            }}
+            className="w-3.5 h-3.5 border-2 !-left-2 transition-transform hover:scale-125"
+            title={`Branch In ${idx + 1}: ${inp.rate.toFixed(1)}/m`}
+          />
+        );
+      })}
 
-      <div className="flex items-center gap-1.5 border-b border-slate-800 pb-1 mb-1">
-        <span className="text-cyan-400 font-bold text-xs">⑃</span>
-        <span className="text-[10px] font-bold text-cyan-300 uppercase tracking-wider">Merger</span>
-        <span className="text-[9px] text-slate-400 font-mono ml-auto">Mk.{nodeData.beltTier || 1}</span>
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-slate-800 pb-1 mb-1.5">
+        <div className="flex items-center gap-1.5">
+          <span className="font-bold text-xs" style={{ color: itemColor }}>
+            ⑃
+          </span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-200">
+            Merger
+          </span>
+        </div>
+        <span className="text-[9px] text-slate-400 font-mono bg-slate-800 px-1 py-0.5 rounded">
+          Mk.{nodeData.beltTier || 1}
+        </span>
       </div>
 
-      <div className="text-[10px] text-slate-300 font-mono capitalize truncate mb-1" title={itemName}>
+      {/* Item Name */}
+      <div
+        className="text-[11px] font-medium truncate mb-2"
+        style={{ color: itemColor }}
+        title={itemName}
+      >
         {itemName}
       </div>
 
-      <div className="bg-slate-950/80 rounded px-1.5 py-1 text-[9px] font-mono border border-slate-800 space-y-0.5">
-        <div className="flex justify-between text-slate-400">
-          <span>IN ({nodeData.inputs?.length || 2}×):</span>
-          <span>{((nodeData.totalOut || 0) / (nodeData.inputs?.length || 2)).toFixed(0)}/m ea</span>
+      {/* Flow Rates Table */}
+      <div className="bg-slate-950/80 rounded-lg p-2 text-[9.5px] font-mono border border-slate-800 space-y-1">
+        <div className="space-y-0.5">
+          <div className="text-[8.5px] text-slate-400 uppercase tracking-wider">
+            IN ({inputCount}&times;):
+          </div>
+          {inputs.map((inp, idx) => (
+            <div key={idx} className="flex justify-between text-slate-300 text-[9px]">
+              <span className="text-slate-400">Port {idx + 1}:</span>
+              <span className="text-slate-200 font-medium">
+                {inp.rate.toFixed(1)}/m
+              </span>
+            </div>
+          ))}
         </div>
-        <div className="flex justify-between text-cyan-400 font-semibold border-t border-slate-800/80 pt-0.5">
-          <span>OUT:</span>
-          <span>{nodeData.totalOut?.toFixed(0)}/m</span>
+
+        <div className="flex justify-between items-center text-slate-300 border-t border-slate-800/80 pt-1">
+          <span className="text-slate-400 font-semibold">OUT:</span>
+          <span className="font-bold text-emerald-400">
+            {nodeData.totalOut?.toFixed(1)}/m
+          </span>
         </div>
       </div>
 
-      <Handle 
-        type="source" 
-        position={Position.Right} 
-        className="w-3 h-3 bg-cyan-400 border-2 border-slate-900 !-right-1.5" 
+      {/* Primary Output Handle on Right */}
+      <Handle
+        id="output"
+        type="source"
+        position={Position.Right}
+        style={{ backgroundColor: itemColor, borderColor: "#0f172a" }}
+        className="w-3.5 h-3.5 border-2 !-right-2"
+        title={`Merger Output: ${itemName} (${nodeData.totalOut?.toFixed(1)}/m)`}
       />
     </div>
   );
