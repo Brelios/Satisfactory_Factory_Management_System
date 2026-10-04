@@ -14,6 +14,7 @@ export interface SolveRequest {
   remainder_strategy?: "merge" | "underclock" | "dedicated";
   allow_overclock?: boolean;
   strict_tier?: boolean;
+  max_pipe_tier?: number;
 }
 
 export interface MachineFeeder {
@@ -58,6 +59,7 @@ export interface PhysicalBelt {
   to_node: string;
   to_port: string;
   description: string;
+  transport_type?: "belt" | "pipe";
 }
 
 export interface PhysicalSplitter {
@@ -121,6 +123,8 @@ export interface TierComparisonRow {
 export interface LogisticsPlan {
   selected_tier: number;
   belt_cap: number;
+  selected_pipe_tier?: number;
+  pipe_cap?: number;
   enforce_belt_limit: boolean;
   remainder_strategy: "merge" | "underclock" | "dedicated";
   allow_overclock: boolean;

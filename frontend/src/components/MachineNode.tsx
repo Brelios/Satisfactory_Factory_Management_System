@@ -19,6 +19,8 @@ export interface MachineNodeData extends Record<string, unknown> {
   underclockClockSpeed?: number;
   physicalMachines?: PhysicalMachine[];
   isHighlighted?: boolean;
+  inputItemOrder?: string[];
+  inputFeedCounts?: Record<string, number>;
 }
 
 function formatClock(clk: number): string {
@@ -43,7 +45,15 @@ const MachineNode = ({ data }: NodeProps) => {
     (nodeData.clockSpeed >= 99.9 ? 0 : 1);
   const underClock = nodeData.underclockClockSpeed ?? nodeData.clockSpeed;
 
-  const inputEntries = Object.entries(nodeData.inputRates || {});
+  const rawInputEntries = Object.entries(nodeData.inputRates || {});
+  const inputEntries =
+    nodeData.inputItemOrder && nodeData.inputItemOrder.length > 0
+      ? [...rawInputEntries].sort((a, b) => {
+          const idxA = nodeData.inputItemOrder!.indexOf(a[0]);
+          const idxB = nodeData.inputItemOrder!.indexOf(b[0]);
+          return (idxA >= 0 ? idxA : 99) - (idxB >= 0 ? idxB : 99);
+        })
+      : rawInputEntries;
   const outputEntries = Object.entries(nodeData.outputRates || {});
 
   // Primary output item color for the card's accent
@@ -70,6 +80,45 @@ const MachineNode = ({ data }: NodeProps) => {
               ? 50
               : 30 + (idx / (inputEntries.length - 1)) * 40; // 30% to 70%
           const itemColor = getItemColor(item);
+          const feedCount = nodeData.inputFeedCounts?.[item] || 1;
+
+          if (feedCount > 1) {
+            return (
+              <React.Fragment key={item}>
+                {Array.from({ length: feedCount }).map((_, subIdx) => {
+                  const subOffset = (subIdx - (feedCount - 1) / 2) * 6;
+                  return (
+                    <Handle
+                      key={`${item}__${subIdx}`}
+                      id={`${item}__${subIdx}`}
+                      type="target"
+                      position={Position.Left}
+                      style={{
+                        top: `${topPercent + subOffset}%`,
+                        backgroundColor: itemColor,
+                        borderColor: "#0f172a",
+                      }}
+                      className="w-3.5 h-3.5 border-2 !-left-2 transition-transform hover:scale-125"
+                      title={`Input: ${item.replace(/_/g, " ")} feed ${subIdx + 1} (${rate.toFixed(1)}/m)`}
+                    />
+                  );
+                })}
+                {/* Fallback default handle */}
+                <Handle
+                  id={item}
+                  type="target"
+                  position={Position.Left}
+                  style={{
+                    top: `${topPercent}%`,
+                    opacity: 0,
+                    pointerEvents: "none",
+                  }}
+                  className="w-1 h-1 !-left-1"
+                />
+              </React.Fragment>
+            );
+          }
+
           return (
             <Handle
               key={item}

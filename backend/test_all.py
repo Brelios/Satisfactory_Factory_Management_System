@@ -3,7 +3,7 @@ import json
 
 BASE = "http://localhost:8000"
 
-def test_endpoint(name, method, path, body=None):
+def run_endpoint_test(name, method, path, body=None):
     print(f"\n{'='*60}")
     print(f"TEST: {name}")
     print(f"{'='*60}")
@@ -24,7 +24,7 @@ def test_endpoint(name, method, path, body=None):
 
 if __name__ == "__main__":
     # Test 1: Resource-constrained (existing test)
-    r = test_endpoint("Resource Constrained: 720 Iron -> Max Modular Frames", "POST", "/api/solve", {
+    r = run_endpoint_test("Resource Constrained: 720 Iron -> Max Modular Frames", "POST", "/api/solve", {
         "mode": "resource_constrained",
         "resources": {"iron_ore": 720},
         "target_items": ["modular_frame"],
@@ -35,7 +35,7 @@ if __name__ == "__main__":
         print(f"  Machines: {r['total_machines']}, Power: {r['total_power_mw']:.1f} MW")
 
     # Test 2: Target-driven LP (was broken — naive heuristic before)
-    r2 = test_endpoint("Target Driven LP: 10 Modular Frames/min", "POST", "/api/solve", {
+    r2 = run_endpoint_test("Target Driven LP: 10 Modular Frames/min", "POST", "/api/solve", {
         "mode": "target_driven",
         "targets": {"modular_frame": 10},
         "optimization": "maximize_output"
@@ -48,7 +48,7 @@ if __name__ == "__main__":
             print(f"    {s['machine_count']}x {s['machine']} ({s['recipe_name']})")
 
     # Test 3: Comparison endpoint
-    r3 = test_endpoint("Compare: 720 Iron with all recipe variants", "POST", "/api/solve/compare", {
+    r3 = run_endpoint_test("Compare: 720 Iron with all recipe variants", "POST", "/api/solve/compare", {
         "mode": "resource_constrained",
         "resources": {"iron_ore": 720},
         "target_items": ["modular_frame"],

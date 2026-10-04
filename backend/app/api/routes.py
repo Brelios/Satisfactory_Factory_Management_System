@@ -118,6 +118,7 @@ def solve_production(req: SolveRequest):
         remainder_strategy=req.remainder_strategy,
         allow_overclock=req.allow_overclock,
         strict_tier=req.strict_tier,
+        selected_pipe_tier=req.max_pipe_tier or 1,
     )
 
     shopping_list = dict(result.shopping_list)
@@ -181,6 +182,7 @@ def solve_compare(req: SolveRequest):
             remainder_strategy=req.remainder_strategy,
             allow_overclock=req.allow_overclock,
             strict_tier=req.strict_tier,
+            selected_pipe_tier=req.max_pipe_tier or 1,
         )
         v_shop = dict(res.shopping_list)
         v_shards = sum(m.power_shards for m in v_logistics.machines)

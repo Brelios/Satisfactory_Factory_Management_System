@@ -301,6 +301,70 @@ class TestLogisticsSolver(unittest.TestCase):
 
         print("PASS: test_overclocking_power_shards")
 
+    def test_pipeline_fluid_constraints(self):
+        """
+        Test pipeline capacity constraints and transport_type='pipe' for fluid items.
+        Mk.1 pipe cap = 300 m³/min, Mk.2 pipe cap = 600 m³/min.
+        """
+        steps_data = [
+            {
+                "step_id": "refinery_step",
+                "recipe_id": "Recipe_Fuel_C",
+                "recipe_name": "Fuel",
+                "machine": "Refinery",
+                "machine_count": 6,
+                "input_rates": {"crude_oil": 360.0},
+                "output_rates": {"fuel": 240.0},
+                "power_mw": 180.0,
+                "normal_machine_count": 6,
+                "underclocked_machine_count": 0,
+                "underclock_clock_speed": 100.0,
+            }
+        ]
+        connections_data = [
+            {
+                "item": "crude_oil",
+                "rate": 360.0,
+                "from_step": "extractor_oil",
+                "to_step": "refinery_step",
+            }
+        ]
+        # Mk.1 pipe: cap 300, 360 m³/min requires 2 pipe lanes
+        plan_mk1 = solve_logistics(
+            steps_data=steps_data,
+            connections_data=connections_data,
+            resource_usage={"crude_oil": 360.0},
+            target_outputs={"fuel": 240.0},
+            selected_tier=1,
+            selected_pipe_tier=1,
+            enforce_belt_limit=True,
+        )
+        self.assertEqual(plan_mk1.pipe_cap, 300.0)
+        self.assertEqual(plan_mk1.selected_pipe_tier, 1)
+        crude_pipes = [b for b in plan_mk1.belts if b.item_id == "crude_oil"]
+        for p in crude_pipes:
+            self.assertEqual(p.transport_type, "pipe")
+            self.assertLessEqual(p.flow, 300.0 + 1e-4)
+
+        # Mk.2 pipe: cap 600, 360 m³/min fits in 1 pipe lane
+        plan_mk2 = solve_logistics(
+            steps_data=steps_data,
+            connections_data=connections_data,
+            resource_usage={"crude_oil": 360.0},
+            target_outputs={"fuel": 240.0},
+            selected_tier=1,
+            selected_pipe_tier=2,
+            enforce_belt_limit=True,
+        )
+        self.assertEqual(plan_mk2.pipe_cap, 600.0)
+        self.assertEqual(plan_mk2.selected_pipe_tier, 2)
+        crude_pipes_mk2 = [b for b in plan_mk2.belts if b.item_id == "crude_oil"]
+        for p in crude_pipes_mk2:
+            self.assertEqual(p.transport_type, "pipe")
+            self.assertLessEqual(p.flow, 600.0 + 1e-4)
+
+        print("PASS: test_pipeline_fluid_constraints")
+
 
 if __name__ == "__main__":
     unittest.main()

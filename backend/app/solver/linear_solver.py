@@ -258,8 +258,9 @@ class ProductionSolver:
             if len(options) > 1:
                 items_with_choices[item_id] = [r.id for r in options]
             if options:
-                for ing in options[0].ingredients:
-                    queue.append(ing.item_id)
+                for opt in options:
+                    for ing in opt.ingredients:
+                        queue.append(ing.item_id)
 
         # Generate recipe combos (cap at 32 to avoid explosion)
         if not items_with_choices:
@@ -282,8 +283,8 @@ class ProductionSolver:
                 break
             combo_count += 1
 
-            # Build alt set from this combination
-            alt_set = set(combo)
+            # Build alt set from this combination (only actual alternate recipes)
+            alt_set = {r_id for r_id in combo if self.game_data.recipes.get(r_id) and self.game_data.recipes[r_id].is_alternate}
 
             try:
                 if mode == "resource_constrained":

@@ -37,6 +37,11 @@ const BELT_TIERS = [
   { tier: 6, name: "Mk.6", speed: 1200 },
 ];
 
+const PIPE_TIERS = [
+  { tier: 1, name: "Mk.1 Pipe", speed: 300 },
+  { tier: 2, name: "Mk.2 Pipe", speed: 600 },
+];
+
 const DEFAULT_RESOURCES: ResourceInput[] = [
   { item_id: "iron_ore", display_name: "Iron Ore", rate: 0 },
   { item_id: "copper_ore", display_name: "Copper Ore", rate: 0 },
@@ -56,11 +61,17 @@ export default function Page() {
   // Belt constraint & logistics controls
   const [enforceBeltLimit, setEnforceBeltLimit] = useState(false);
   const [maxBeltTier, setMaxBeltTier] = useState<number>(3);
+  const [maxPipeTier, setMaxPipeTier] = useState<number>(1);
   const [remainderStrategy, setRemainderStrategy] = useState<
     "merge" | "underclock" | "dedicated"
   >("merge");
   const [allowOverclock, setAllowOverclock] = useState(false);
   const [strictTier, setStrictTier] = useState(false);
+
+  // Panel layout customization
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
+  const [bottomTableCollapsed, setBottomTableCollapsed] = useState(false);
 
   // Panels & Offender Highlight
   const [validationPanelOpen, setValidationPanelOpen] = useState(false);
@@ -102,7 +113,8 @@ export default function Page() {
       currentMaxBelt: number,
       currentRemainderStrategy: "merge" | "underclock" | "dedicated" = "merge",
       currentAllowOverclock: boolean = false,
-      currentStrictTier: boolean = false
+      currentStrictTier: boolean = false,
+      currentMaxPipe: number = 1
     ) => {
       setError(null);
       setCompareVariants(null);
@@ -141,6 +153,7 @@ export default function Page() {
           remainder_strategy: currentRemainderStrategy,
           allow_overclock: currentAllowOverclock,
           strict_tier: currentStrictTier,
+          max_pipe_tier: currentMaxPipe,
         };
 
         const data = await solveProduction(req);
@@ -186,7 +199,27 @@ export default function Page() {
         newTier,
         remainderStrategy,
         allowOverclock,
-        strictTier
+        strictTier,
+        maxPipeTier
+      );
+    }
+  };
+
+  const handleMaxPipeTierChange = (newPipeTier: number) => {
+    setMaxPipeTier(newPipeTier);
+    if (result) {
+      executeSolve(
+        mode,
+        resources,
+        targetRates,
+        targetItems,
+        unlockedAlts,
+        enforceBeltLimit,
+        maxBeltTier,
+        remainderStrategy,
+        allowOverclock,
+        strictTier,
+        newPipeTier
       );
     }
   };
@@ -204,7 +237,8 @@ export default function Page() {
         maxBeltTier,
         remainderStrategy,
         allowOverclock,
-        strictTier
+        strictTier,
+        maxPipeTier
       );
     }
   };
@@ -224,7 +258,8 @@ export default function Page() {
         maxBeltTier,
         strat,
         allowOverclock,
-        strictTier
+        strictTier,
+        maxPipeTier
       );
     }
   };
@@ -242,7 +277,8 @@ export default function Page() {
         maxBeltTier,
         remainderStrategy,
         checked,
-        strictTier
+        strictTier,
+        maxPipeTier
       );
     }
   };
@@ -260,7 +296,8 @@ export default function Page() {
         maxBeltTier,
         remainderStrategy,
         allowOverclock,
-        checked
+        checked,
+        maxPipeTier
       );
     }
   };
@@ -333,7 +370,8 @@ export default function Page() {
               loadedPlan.maxBeltTier || 3,
               loadedPlan.remainderStrategy || "merge",
               Boolean(loadedPlan.allowOverclock),
-              Boolean(loadedPlan.strictTier)
+              Boolean(loadedPlan.strictTier),
+              maxPipeTier
             );
           }
         }
@@ -342,7 +380,7 @@ export default function Page() {
       }
     }
     loadData();
-  }, [executeSolve]);
+  }, [executeSolve, maxPipeTier]);
 
   const handleSolve = () => {
     executeSolve(
@@ -355,7 +393,8 @@ export default function Page() {
       maxBeltTier,
       remainderStrategy,
       allowOverclock,
-      strictTier
+      strictTier,
+      maxPipeTier
     );
   };
 
@@ -399,6 +438,7 @@ export default function Page() {
         remainder_strategy: remainderStrategy,
         allow_overclock: allowOverclock,
         strict_tier: strictTier,
+        max_pipe_tier: maxPipeTier,
       };
 
       const data = await solveCompare(req);
@@ -608,6 +648,25 @@ export default function Page() {
             <span>Share Plan</span>
           </button>
 
+          {/* Full Canvas Toggle */}
+          <button
+            onClick={() => {
+              const allCollapsed = leftPanelCollapsed && rightPanelCollapsed && bottomTableCollapsed;
+              setLeftPanelCollapsed(!allCollapsed);
+              setRightPanelCollapsed(!allCollapsed);
+              setBottomTableCollapsed(!allCollapsed);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all shadow-sm active:scale-95 ${
+              leftPanelCollapsed && rightPanelCollapsed && bottomTableCollapsed
+                ? "bg-sky-600 border-sky-500 text-white shadow-sky-900/40"
+                : "bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700"
+            }`}
+            title="Toggle full screen canvas (collapses or restores all panels)"
+          >
+            <span>{leftPanelCollapsed && rightPanelCollapsed && bottomTableCollapsed ? "🗗" : "⛶"}</span>
+            <span>{leftPanelCollapsed && rightPanelCollapsed && bottomTableCollapsed ? "Restore Panels" : "Full Canvas"}</span>
+          </button>
+
           {/* Alt Recipes Button */}
           <button
             onClick={() => setAltPanelOpen(true)}
@@ -629,9 +688,36 @@ export default function Page() {
         </div>
       )}
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
         {/* Left Input Configuration Panel */}
-        <div className="w-80 bg-slate-900 border-r border-slate-700/80 flex flex-col shrink-0 overflow-y-auto select-none">
+        {leftPanelCollapsed ? (
+          <div className="w-12 bg-slate-900 border-r border-slate-700/80 flex flex-col items-center py-4 shrink-0 select-none transition-all">
+            <button
+              onClick={() => setLeftPanelCollapsed(false)}
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+              title="Expand Inputs Panel (»)"
+            >
+              <span className="text-sm font-bold">»</span>
+            </button>
+            <div className="mt-8 [writing-mode:vertical-rl] rotate-180 text-xs font-semibold tracking-wider text-slate-500 uppercase flex items-center gap-2">
+              <span>⚙️</span>
+              <span>Inputs &amp; Config</span>
+            </div>
+          </div>
+        ) : (
+          <div className="w-80 bg-slate-900 border-r border-slate-700/80 flex flex-col shrink-0 overflow-y-auto select-none transition-all">
+            <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-slate-800">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Inputs &amp; Settings
+              </span>
+              <button
+                onClick={() => setLeftPanelCollapsed(true)}
+                className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded text-xs transition-colors"
+                title="Collapse Inputs Panel («)"
+              >
+                «
+              </button>
+            </div>
           <div className="p-4 space-y-5">
             {/* Mode Selector */}
             <div>
@@ -846,6 +932,25 @@ export default function Page() {
                 </select>
               </div>
 
+              {/* Max Pipeline Tier Dropdown */}
+              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                <label htmlFor="max-pipe-select" className="text-xs text-slate-300">
+                  Max Pipeline Tier:
+                </label>
+                <select
+                  id="max-pipe-select"
+                  value={maxPipeTier}
+                  onChange={(e) => handleMaxPipeTierChange(Number(e.target.value))}
+                  className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-sky-400 font-mono focus:border-sky-500 outline-none cursor-pointer"
+                >
+                  {PIPE_TIERS.map((p) => (
+                    <option key={p.tier} value={p.tier}>
+                      {p.name} ({p.speed} m³/min)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Strict Tier Checkbox */}
               {enforceBeltLimit && (
                 <div className="flex items-center justify-between pt-1">
@@ -936,6 +1041,7 @@ export default function Page() {
             )}
           </div>
         </div>
+      )}
 
         {/* Main Canvas & Inspection Area */}
         <div className="flex-1 flex flex-col bg-slate-950 p-4 gap-3.5 overflow-hidden relative">
@@ -958,18 +1064,78 @@ export default function Page() {
             />
           </div>
 
-          <div className="h-64 overflow-y-auto shrink-0 pr-1">
-            <ProductionTable
-              steps={result?.steps || []}
-              connections={result?.connections || []}
-            />
-          </div>
+          {/* Collapsible Bottom Production Table */}
+          {bottomTableCollapsed ? (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 flex items-center justify-between shrink-0 select-none">
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
+                <span>📋</span>
+                <span>
+                  Production Steps ({result?.steps?.length || 0} machines)
+                </span>
+              </div>
+              <button
+                onClick={() => setBottomTableCollapsed(false)}
+                className="flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded text-xs font-medium transition-colors"
+                title="Expand Production Table"
+              >
+                <span>▲ Show Table</span>
+              </button>
+            </div>
+          ) : (
+            <div className="h-64 overflow-y-auto shrink-0 pr-1 flex flex-col bg-slate-900/60 border border-slate-800 rounded-xl p-2 relative">
+              <div className="flex items-center justify-between pb-1.5 mb-1 border-b border-slate-800/80 px-2 shrink-0">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>📋</span>
+                  <span>Production Steps &amp; Machine Feeds</span>
+                </span>
+                <button
+                  onClick={() => setBottomTableCollapsed(true)}
+                  className="flex items-center gap-1 px-2 py-0.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded text-xs font-medium transition-colors"
+                  title="Hide Table"
+                >
+                  <span>▼ Hide Table</span>
+                </button>
+              </div>
+              <ProductionTable
+                steps={result?.steps || []}
+                connections={result?.connections || []}
+              />
+            </div>
+          )}
         </div>
 
         {/* Right Dashboard / Logistics Summary Panel */}
-        <div className="w-[320px] bg-slate-900 border-l border-slate-700/80 overflow-y-auto shrink-0 p-4">
-          <ShoppingList result={result} />
-        </div>
+        {rightPanelCollapsed ? (
+          <div className="w-12 bg-slate-900 border-l border-slate-700/80 flex flex-col items-center py-4 shrink-0 select-none transition-all">
+            <button
+              onClick={() => setRightPanelCollapsed(false)}
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+              title="Expand Summary &amp; BOM («)"
+            >
+              <span className="text-sm font-bold">«</span>
+            </button>
+            <div className="mt-8 [writing-mode:vertical-rl] text-xs font-semibold tracking-wider text-slate-500 uppercase flex items-center gap-2">
+              <span>📊</span>
+              <span>Summary &amp; BOM</span>
+            </div>
+          </div>
+        ) : (
+          <div className="w-[320px] bg-slate-900 border-l border-slate-700/80 overflow-y-auto shrink-0 p-4 transition-all relative">
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Logistics &amp; BOM
+              </span>
+              <button
+                onClick={() => setRightPanelCollapsed(true)}
+                className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded text-xs transition-colors"
+                title="Collapse Summary Panel (»)"
+              >
+                »
+              </button>
+            </div>
+            <ShoppingList result={result} />
+          </div>
+        )}
       </div>
 
       {/* Alternate Recipes Drawer Modal */}

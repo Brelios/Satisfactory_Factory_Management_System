@@ -188,25 +188,107 @@ export default function BlueprintCanvas({
       const yOffset = ((maxRowsInAnyCol - colHeight) * ROW_SPACING) / 2;
 
       stepIdsInCol.forEach((stepId, rowIdx) => {
+        const x = colXPositions[colIdx] ?? (NODE_OFFSET_X + colIdx * 980);
+        const y = yOffset + rowIdx * ROW_SPACING;
+        machinePositions[stepId] = { x, y, colIdx, rowIdx };
+      });
+    });
+
+    // Count feeds per (to_step, item) across all connections
+    const stepFeedCounts: Record<string, Record<string, number>> = {};
+    result.connections.forEach((conn) => {
+      if (!stepFeedCounts[conn.to_step]) stepFeedCounts[conn.to_step] = {};
+      stepFeedCounts[conn.to_step][conn.item] =
+        (stepFeedCounts[conn.to_step][conn.item] || 0) + 1;
+    });
+
+    // Calculate optimal input item vertical ordering by upstream supplier Y position
+    const resourceKeys = Object.keys(result.resource_usage);
+    const resYOffset = ((maxRowsInAnyCol - resourceKeys.length) * ROW_SPACING) / 2;
+
+    const stepInputOrders: Record<string, string[]> = {};
+    result.steps.forEach((step) => {
+      const inputItems = Object.keys(step.input_rates || {});
+      const itemAvgSupplierY: Record<string, number> = {};
+
+      inputItems.forEach((itemId) => {
+        const supplierYs: number[] = [];
+        result.connections.forEach((conn) => {
+          if (conn.to_step === step.step_id && conn.item === itemId) {
+            const supPos = machinePositions[conn.from_step];
+            if (supPos) supplierYs.push(supPos.y);
+          }
+        });
+
+        if (result.resource_usage[itemId] !== undefined) {
+          const rIdx = resourceKeys.indexOf(itemId);
+          if (rIdx >= 0) {
+            supplierYs.push(resYOffset + rIdx * ROW_SPACING);
+          }
+        }
+
+        itemAvgSupplierY[itemId] =
+          supplierYs.length > 0
+            ? supplierYs.reduce((sum, y) => sum + y, 0) / supplierYs.length
+            : 0;
+      });
+
+      // Sort input items by upstream supplier Y ascending (upper supplier -> top handle)
+      stepInputOrders[step.step_id] = [...inputItems].sort(
+        (a, b) => (itemAvgSupplierY[a] ?? 0) - (itemAvgSupplierY[b] ?? 0)
+      );
+    });
+
+    // Helper: Calculate exact handle Y on destination machine for a specific input item
+    const getDestinationHandleY = (
+      destStepId: string,
+      itemId: string,
+      feedIdx: number = 0
+    ): number => {
+      const destPos = machinePositions[destStepId];
+      if (!destPos) return 0;
+      const step = stepLookup.get(destStepId);
+      if (!step) return destPos.y + NODE_HEIGHT * 0.5;
+
+      const order =
+        stepInputOrders[destStepId] || Object.keys(step.input_rates || {});
+      const itemIdx = order.indexOf(itemId);
+      const feedCount = stepFeedCounts[destStepId]?.[itemId] || 1;
+      const subOffset =
+        feedCount > 1
+          ? (feedIdx - (feedCount - 1) / 2) * (NODE_HEIGHT * 0.06)
+          : 0;
+
+      if (itemIdx === -1 || order.length <= 1) {
+        return destPos.y + NODE_HEIGHT * 0.5 + subOffset;
+      }
+      const topPercent = 0.3 + (itemIdx / (order.length - 1)) * 0.4;
+      return destPos.y + NODE_HEIGHT * topPercent + subOffset;
+    };
+
+    // Instantiate Machine Nodes
+    sortedColKeys.forEach((colIdx) => {
+      const stepIdsInCol = columns[colIdx];
+      stepIdsInCol.forEach((stepId) => {
         const step = stepLookup.get(stepId);
         if (!step) return;
 
-        const x = colXPositions[colIdx] ?? (NODE_OFFSET_X + colIdx * 980);
-        const y = yOffset + rowIdx * ROW_SPACING;
-        machinePositions[step.step_id] = { x, y, colIdx, rowIdx };
+        const pos = machinePositions[stepId];
+        if (!pos) return;
 
         // Collect all items for legend
         Object.keys(step.input_rates || {}).forEach((i) => encounteredItems.add(i));
         Object.keys(step.output_rates || {}).forEach((i) => encounteredItems.add(i));
 
-        const pMachs = result.logistics?.machines?.filter(
-          (m) => m.step_id === step.step_id
-        ) || [];
+        const pMachs =
+          result.logistics?.machines?.filter(
+            (m) => m.step_id === step.step_id
+          ) || [];
 
         nodes.push({
           id: step.step_id,
           type: "machineNode",
-          position: { x, y },
+          position: { x: pos.x, y: pos.y },
           data: {
             label: step.recipe_name,
             machine: step.machine,
@@ -222,26 +304,12 @@ export default function BlueprintCanvas({
             underclockClockSpeed: step.underclock_clock_speed,
             physicalMachines: pMachs,
             isHighlighted: highlightedOffenderId === step.step_id,
+            inputItemOrder: stepInputOrders[step.step_id],
+            inputFeedCounts: stepFeedCounts[step.step_id],
           },
         });
       });
     });
-
-    // Helper: Calculate exact handle Y on destination machine for a specific input item
-    const getDestinationHandleY = (destStepId: string, itemId: string): number => {
-      const destPos = machinePositions[destStepId];
-      if (!destPos) return 0;
-      const step = stepLookup.get(destStepId);
-      if (!step) return destPos.y + NODE_HEIGHT * 0.5;
-
-      const inputItems = Object.keys(step.input_rates || {});
-      const itemIdx = inputItems.indexOf(itemId);
-      if (itemIdx === -1 || inputItems.length === 1) {
-        return destPos.y + NODE_HEIGHT * 0.5;
-      }
-      const topPercent = 0.3 + (itemIdx / (inputItems.length - 1)) * 0.4;
-      return destPos.y + NODE_HEIGHT * topPercent;
-    };
 
     // Helper to determine belt tier for a given rate
     const getTierForRate = (r: number): number => {
@@ -285,6 +353,8 @@ export default function BlueprintCanvas({
       encounteredItems.add(conn.item);
     });
 
+    const connFeedCounters: Record<string, number> = {};
+
     Object.entries(outgoingGroups).forEach(([key, conns]) => {
       const [fromStepId, itemId] = key.split("__");
       const fromPos = machinePositions[fromStepId];
@@ -304,15 +374,11 @@ export default function BlueprintCanvas({
           ? `⚠️ ${totalRate.toFixed(0)}/m (> Mk.${selectedTier} ${tierCap}/m - needs ${Math.ceil(totalRate / tierCap)} lanes)`
           : `${itemName} ${totalRate.toFixed(0)}/${tierCap} (${trunkUtil}%)`;
 
-        // Sort connections so destination in same row (if any) is placed in the last chunk
+        // Sort connections strictly by destination Y ascending so upper machines connect to upper splitter ports
         const sortedConns = [...conns].sort((a, b) => {
-          const rowA = machinePositions[a.to_step]?.rowIdx ?? 99;
-          const rowB = machinePositions[b.to_step]?.rowIdx ?? 99;
-          const isSameRowA = rowA === fromPos.rowIdx;
-          const isSameRowB = rowB === fromPos.rowIdx;
-          if (isSameRowA && !isSameRowB) return 1;
-          if (!isSameRowA && isSameRowB) return -1;
-          return rowA - rowB;
+          const yA = getDestinationHandleY(a.to_step, itemId);
+          const yB = getDestinationHandleY(b.to_step, itemId);
+          return yA - yB;
         });
 
         // If conns.length > 2, chain splitters so NO splitter has > 3 ports (2 outputs + 1 pass-through)
@@ -337,7 +403,14 @@ export default function BlueprintCanvas({
           );
           const sY = fromPos.y + (NODE_HEIGHT - sHeight) / 2;
 
-          const sOutputs = chunk.map((c) => ({ to: c.to_step, rate: c.rate }));
+          // Ensure connections in this chunk are strictly sorted by destination Y ascending
+          const sortedChunk = [...chunk].sort((a, b) => {
+            const yA = getDestinationHandleY(a.to_step, itemId);
+            const yB = getDestinationHandleY(b.to_step, itemId);
+            return yA - yB;
+          });
+
+          const sOutputs = sortedChunk.map((c) => ({ to: c.to_step, rate: c.rate }));
           if (chunkIdx < splitterChunks.length - 1) {
             const passThroughRate = sortedConns
               .slice((chunkIdx + 1) * MAX_OUT_PER_SPLITTER)
@@ -455,10 +528,12 @@ export default function BlueprintCanvas({
           }
 
           // Splitter -> each Destination Machine in this chunk
-          chunk.forEach((conn, cIdx) => {
+          sortedChunk.forEach((conn, cIdx) => {
             const destPos = machinePositions[conn.to_step];
             const destDepth = destPos ? destPos.colIdx : fromDepth + 1;
-            const targetY = getDestinationHandleY(conn.to_step, itemId);
+            const feedIdx = connFeedCounters[`${conn.to_step}__${itemId}`] || 0;
+            connFeedCounters[`${conn.to_step}__${itemId}`] = feedIdx + 1;
+            const targetY = getDestinationHandleY(conn.to_step, itemId, feedIdx);
             const targetX = destPos ? destPos.x : sX + 350;
 
             const splitCount = sOutputs.length;
@@ -485,7 +560,20 @@ export default function BlueprintCanvas({
               labelX = (splitBranchSrc.x + targetX) / 2;
               labelY = targetY - 14;
             } else {
-              const turnX = sX + SPLITTER_WIDTH + 45 + (cIdx % 2) * 24;
+              const isGoingUp = targetY < splitBranchSrc.y;
+              const isGoingDown = targetY > splitBranchSrc.y;
+
+              let turnOffset = 45;
+              if (sortedChunk.length > 1) {
+                if (isGoingUp) {
+                  // Upper port turns closer (45px), lower port turns further (80px)
+                  turnOffset = cIdx === 0 ? 45 : 80;
+                } else if (isGoingDown) {
+                  // Lower port turns closer (45px), upper port turns further (80px)
+                  turnOffset = cIdx === 1 ? 45 : 80;
+                }
+              }
+              const turnX = sX + SPLITTER_WIDTH + turnOffset;
 
               if (isDirectNeighbor) {
                 waypoints = [
@@ -530,12 +618,17 @@ export default function BlueprintCanvas({
                 ? `${conn.belt_count}× Mk.${conn.belt_tier}`
                 : `Mk.${conn.belt_tier}`;
 
+            const targetHandle =
+              (stepFeedCounts[conn.to_step]?.[itemId] || 1) > 1
+                ? `${itemId}__${feedIdx}`
+                : itemId;
+
             edges.push({
               id: `e-${sId}-${conn.to_step}-${cIdx}`,
               source: sId,
               sourceHandle: `out-${cIdx}`,
               target: conn.to_step,
-              targetHandle: itemId,
+              targetHandle,
               type: "conveyorBridge",
               data: {
                 waypoints,
@@ -570,7 +663,9 @@ export default function BlueprintCanvas({
         const conn = conns[0];
         const destPos = machinePositions[conn.to_step];
         const destDepth = destPos ? destPos.colIdx : fromDepth + 1;
-        const targetY = getDestinationHandleY(conn.to_step, itemId);
+        const feedIdx = connFeedCounters[`${conn.to_step}__${itemId}`] || 0;
+        connFeedCounters[`${conn.to_step}__${itemId}`] = feedIdx + 1;
+        const targetY = getDestinationHandleY(conn.to_step, itemId, feedIdx);
         const targetX = destPos ? destPos.x : fromPos.x + 350;
 
         const sourcePt = {
@@ -628,12 +723,17 @@ export default function BlueprintCanvas({
           : `${itemName} ${conn.rate.toFixed(0)}/${tierCap} (${directUtil}%)`;
         const beltInfo = conn.belt_count > 1 ? `${conn.belt_count}× Mk.${conn.belt_tier}` : `Mk.${conn.belt_tier}`;
 
+        const targetHandle =
+          (stepFeedCounts[conn.to_step]?.[itemId] || 1) > 1
+            ? `${itemId}__${feedIdx}`
+            : itemId;
+
         edges.push({
           id: `e-${conn.from_step}-${conn.to_step}`,
           source: conn.from_step,
           sourceHandle: "output",
           target: conn.to_step,
-          targetHandle: itemId,
+          targetHandle,
           type: "conveyorBridge",
           data: {
             waypoints,
@@ -652,8 +752,6 @@ export default function BlueprintCanvas({
     });
 
     // 6. Resource Input Miners & Splitters (Column 0, left)
-    const resourceKeys = Object.keys(result.resource_usage);
-    const resYOffset = ((maxRowsInAnyCol - resourceKeys.length) * ROW_SPACING) / 2;
 
     resourceKeys.forEach((item, rIdx) => {
       const rate = result.resource_usage[item];
@@ -670,7 +768,15 @@ export default function BlueprintCanvas({
         data: { label: item, rate, color: itemColor, isHighlighted: highlightedOffenderId === resId },
       });
 
-      const consumingSteps = result.steps.filter((step) => step.input_rates && step.input_rates[item]);
+      const rawConsumingSteps = result.steps.filter(
+        (step) => step.input_rates && step.input_rates[item]
+      );
+      // Sort consuming steps strictly by destination Y ascending
+      const consumingSteps = [...rawConsumingSteps].sort((a, b) => {
+        const yA = getDestinationHandleY(a.step_id, item);
+        const yB = getDestinationHandleY(b.step_id, item);
+        return yA - yB;
+      });
 
       if (consumingSteps.length > 1) {
         // Resource feeds multiple lines -> insert Splitter in resource's lane
@@ -725,7 +831,9 @@ export default function BlueprintCanvas({
         consumingSteps.forEach((step, sIdx) => {
           const consumeRate = step.input_rates[item];
           const destPos = machinePositions[step.step_id];
-          const targetY = getDestinationHandleY(step.step_id, item);
+          const feedIdx = connFeedCounters[`${step.step_id}__${item}`] || 0;
+          connFeedCounters[`${step.step_id}__${item}`] = feedIdx + 1;
+          const targetY = getDestinationHandleY(step.step_id, item, feedIdx);
           const targetX = destPos ? destPos.x : NODE_OFFSET_X;
 
           const topPercent =
@@ -745,7 +853,18 @@ export default function BlueprintCanvas({
           if (isStraight) {
             waypoints = [splitBranchSrc, { x: targetX, y: targetY }];
           } else {
-            const turnX = splitterX + SPLITTER_WIDTH + 45 + (sIdx % 2) * 24;
+            const isGoingUp = targetY < splitBranchSrc.y;
+            const isGoingDown = targetY > splitBranchSrc.y;
+            let turnOffset = 45;
+            if (consumingSteps.length > 1) {
+              if (isGoingUp) {
+                turnOffset = sIdx === 0 ? 45 : 80;
+              } else if (isGoingDown) {
+                turnOffset = sIdx === 1 ? 45 : 80;
+              }
+            }
+            const turnX = splitterX + SPLITTER_WIDTH + turnOffset;
+
             waypoints = [
               splitBranchSrc,
               { x: turnX, y: splitBranchSrc.y },
@@ -759,12 +878,17 @@ export default function BlueprintCanvas({
           const branchIsOver = !enforceLimit && consumeRate > tierCap + 1e-4;
           const branchUtil = tierCap > 0 ? Math.min(100, Math.round((consumeRate / tierCap) * 100)) : 100;
 
+          const targetHandle =
+            (stepFeedCounts[step.step_id]?.[item] || 1) > 1
+              ? `${item}__${feedIdx}`
+              : item;
+
           edges.push({
             id: `e-${splitterId}-${step.step_id}-${sIdx}`,
             source: splitterId,
             sourceHandle: `out-${sIdx}`,
             target: step.step_id,
-            targetHandle: item,
+            targetHandle,
             type: "conveyorBridge",
             data: {
               waypoints,

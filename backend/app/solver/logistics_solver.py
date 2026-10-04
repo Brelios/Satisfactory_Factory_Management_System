@@ -57,6 +57,7 @@ class PhysicalBelt(BaseModel):
     to_node: str
     to_port: str
     description: str = ""
+    transport_type: Literal["belt", "pipe"] = "belt"
 
 
 class PhysicalSplitter(BaseModel):
@@ -120,6 +121,8 @@ class TierComparisonRow(BaseModel):
 class LogisticsPlan(BaseModel):
     selected_tier: int
     belt_cap: float
+    selected_pipe_tier: int = 1
+    pipe_cap: float = 300.0
     enforce_belt_limit: bool
     remainder_strategy: Literal["merge", "underclock", "dedicated"]
     allow_overclock: bool
@@ -142,6 +145,11 @@ class LogisticsPlan(BaseModel):
 # ---------------------------------------------------------------------------
 
 BELT_SPEEDS = [60.0, 120.0, 270.0, 480.0, 780.0, 1200.0]
+PIPELINE_SPEEDS = [300.0, 600.0]
+FLUID_ITEMS = {
+    "water", "crude_oil", "nitrogen_gas", "fuel", "heavy_oil_residue",
+    "liquid_biofuel", "turbofuel", "alumina_solution", "sulfuric_acid", "nitric_acid"
+}
 
 
 def get_belt_tier_for_flow(flow: float, speeds: List[float] = BELT_SPEEDS, cap_ceiling: Optional[float] = None) -> Tuple[int, float]:
@@ -173,6 +181,7 @@ def solve_logistics(
     remainder_strategy: Literal["merge", "underclock", "dedicated"] = "merge",
     allow_overclock: bool = False,
     strict_tier: bool = False,
+    selected_pipe_tier: int = 1,
 ) -> LogisticsPlan:
     """
     Pure-function logistics solver that transforms high-level steps into
@@ -181,6 +190,9 @@ def solve_logistics(
     tier_idx = min(max(1, selected_tier), len(belt_speeds)) - 1
     belt_cap = belt_speeds[tier_idx] if enforce_belt_limit else float("inf")
     effective_cap = belt_speeds[tier_idx]
+
+    pipe_tier_idx = min(max(1, selected_pipe_tier), len(PIPELINE_SPEEDS)) - 1
+    effective_pipe_cap = PIPELINE_SPEEDS[pipe_tier_idx]
 
     # 1. Instantiate individual PhysicalMachine objects
     physical_machines: List[PhysicalMachine] = []
@@ -258,13 +270,27 @@ def solve_logistics(
     def make_belt(item: str, flow: float, from_n: str, from_p: str, to_n: str, to_p: str, desc: str = "") -> PhysicalBelt:
         nonlocal belt_id_counter
         belt_id_counter += 1
-        b_id = f"belt_{item}_{belt_id_counter}"
-        t, c = get_belt_tier_for_flow(flow, belt_speeds, cap_ceiling=effective_cap if enforce_belt_limit else None)
+        is_fluid = item in FLUID_ITEMS
+        if is_fluid:
+            speeds = PIPELINE_SPEEDS
+            effective_item_cap = effective_pipe_cap
+            prefix = "pipe"
+            trans_type = "pipe"
+            user_tier = pipe_tier_idx + 1
+        else:
+            speeds = belt_speeds
+            effective_item_cap = effective_cap
+            prefix = "belt"
+            trans_type = "belt"
+            user_tier = tier_idx + 1
+
+        b_id = f"{prefix}_{item}_{belt_id_counter}"
+        t, c = get_belt_tier_for_flow(flow, speeds, cap_ceiling=effective_item_cap if enforce_belt_limit else None)
         if strict_tier:
-            t = tier_idx + 1
-            c = effective_cap
+            t = user_tier
+            c = effective_item_cap
         util = round((flow / c) * 100.0, 1) if c > 0 else 0.0
-        is_over = flow > effective_cap + 1e-4 if enforce_belt_limit else False
+        is_over = flow > effective_item_cap + 1e-4 if enforce_belt_limit else False
         b = PhysicalBelt(
             belt_id=b_id,
             item_id=item,
@@ -277,7 +303,8 @@ def solve_logistics(
             from_port=from_p,
             to_node=to_n,
             to_port=to_p,
-            description=desc
+            description=desc,
+            transport_type=trans_type,
         )
         physical_belts.append(b)
         return b
@@ -308,7 +335,9 @@ def solve_logistics(
         if total_demand < 1e-6 or not consumer_machines:
             continue
 
-        cap = effective_cap if enforce_belt_limit else max(total_demand, total_supply, 60.0)
+        is_fluid = item in FLUID_ITEMS
+        item_effective_cap = effective_pipe_cap if is_fluid else effective_cap
+        cap = item_effective_cap if enforce_belt_limit else max(total_demand, total_supply, 300.0 if is_fluid else 60.0)
 
         # Create Supply Lanes: ceil(S / C)
         num_lanes = max(1, math.ceil(total_supply / cap)) if cap > 0 else 1
@@ -419,7 +448,7 @@ def solve_logistics(
                     physical_splitters.append(PhysicalSplitter(
                         splitter_id=s_id,
                         item_id=item,
-                        tier=get_belt_tier_for_flow(amt + rem_lane_flow, belt_speeds)[0],
+                        tier=get_belt_tier_for_flow(amt + rem_lane_flow, PIPELINE_SPEEDS if is_fluid else belt_speeds)[0],
                         in_rate=round(amt + rem_lane_flow, 4),
                         out_rates=out_rates,
                         from_belt=b_in.belt_id,
@@ -458,7 +487,7 @@ def solve_logistics(
                         physical_mergers.append(PhysicalMerger(
                             merger_id=m_node_id,
                             item_id=item,
-                            tier=get_belt_tier_for_flow(chunk_out, belt_speeds)[0],
+                            tier=get_belt_tier_for_flow(chunk_out, PIPELINE_SPEEDS if is_fluid else belt_speeds)[0],
                             in_rates=in_rates_chunk,
                             out_rate=min(chunk_out, cap),
                             from_belts=[f"belt_{src}" for src in chunk],
@@ -513,7 +542,8 @@ def solve_logistics(
         if usage <= 1e-4:
             continue
         # Split usage into realistic miner nodes (e.g. 120/min Mk.2 normal node)
-        node_cap = min(120.0, effective_cap)
+        is_fluid = res_item in FLUID_ITEMS
+        node_cap = min(120.0, effective_pipe_cap) if is_fluid else min(120.0, effective_cap)
         num_miners = max(1, math.ceil(usage / node_cap))
         rem_ore = usage
         for _ in range(num_miners):
@@ -527,7 +557,7 @@ def solve_logistics(
                 from_p="out",
                 to_n=f"source_trunk_{res_item}_lane_1",
                 to_p="in",
-                desc=f"Miner extraction for {res_item}"
+                desc=f"Extractor for {res_item}" if is_fluid else f"Miner extraction for {res_item}"
             )
             physical_miners.append(PhysicalMiner(
                 miner_id=f"miner_{miner_idx}_{res_item}",
@@ -539,32 +569,15 @@ def solve_logistics(
                 belt_id=b_min.belt_id
             ))
 
-    # 6. Physical Splitters (Manifolds with <= 3 ports)
-    # Generate manifold chains for machines sharing feeds
-    splitter_counter = 0
-    for m in physical_machines:
-        for itm, inp in m.inputs.items():
-            if len(inp.feeds) > 0:
-                splitter_counter += 1
-                physical_splitters.append(PhysicalSplitter(
-                    splitter_id=f"splitter_{itm}_{splitter_counter}",
-                    item_id=itm,
-                    tier=get_belt_tier_for_flow(inp.received, belt_speeds)[0],
-                    in_rate=inp.received,
-                    out_rates=[f.rate for f in inp.feeds][:3],
-                    from_belt=inp.feeds[0].belt_id,
-                    to_belts=[f.belt_id for f in inp.feeds]
-                ))
-
-    # 7. Validation Checks
+    # 6. Validation Checks
     checks: List[ValidationCheck] = []
 
     # Check 1: Every belt <= cap
     over_cap_belts = [b.belt_id for b in physical_belts if b.is_over_cap]
     checks.append(ValidationCheck(
-        name="Belt Throughput Cap",
+        name="Throughput Cap",
         passed=len(over_cap_belts) == 0,
-        details=f"All {len(physical_belts)} belts within {effective_cap}/min cap" if not over_cap_belts else f"{len(over_cap_belts)} belts exceed {effective_cap}/min cap",
+        details=f"All {len(physical_belts)} routes within capacity limits" if not over_cap_belts else f"{len(over_cap_belts)} routes exceed capacity limit",
         offending_ids=over_cap_belts
     ))
 
@@ -600,12 +613,12 @@ def solve_logistics(
     single_inp_over_cap = [
         m.machine_id for m in physical_machines
         for inp in m.inputs.values()
-        if enforce_belt_limit and inp.demand > effective_cap + 1e-4
+        if enforce_belt_limit and inp.demand > ((effective_pipe_cap if inp.item_id in FLUID_ITEMS else effective_cap) + 1e-4)
     ]
     checks.append(ValidationCheck(
         name="Single Machine Input <= Cap",
         passed=len(single_inp_over_cap) == 0,
-        details="No machine input exceeds belt capacity" if not single_inp_over_cap else f"{len(single_inp_over_cap)} machine inputs exceed belt tier capacity; higher tier required",
+        details="No machine input exceeds capacity" if not single_inp_over_cap else f"{len(single_inp_over_cap)} machine inputs exceed tier capacity; higher tier required",
         offending_ids=single_inp_over_cap
     ))
 
@@ -653,6 +666,8 @@ def solve_logistics(
     return LogisticsPlan(
         selected_tier=selected_tier,
         belt_cap=effective_cap,
+        selected_pipe_tier=selected_pipe_tier,
+        pipe_cap=effective_pipe_cap,
         enforce_belt_limit=enforce_belt_limit,
         remainder_strategy=remainder_strategy,
         allow_overclock=allow_overclock,

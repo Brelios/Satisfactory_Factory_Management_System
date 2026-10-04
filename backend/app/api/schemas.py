@@ -27,6 +27,7 @@ class SolveRequest(BaseModel):
     remainder_strategy: Literal["merge", "underclock", "dedicated"] = "merge"
     allow_overclock: bool = False
     strict_tier: bool = False
+    max_pipe_tier: Optional[int] = 1
 
 
 class ProductionStepResponse(BaseModel):
