@@ -3,10 +3,16 @@ import React, { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { getItemColor, formatItemName } from "@/lib/colors";
 
+export interface SplitterNodeOutput {
+  to: string;
+  rate: number;
+  topPercent?: number;
+}
+
 export interface SplitterNodeData extends Record<string, unknown> {
   item: string;
   totalIn: number;
-  outputs: { to: string; rate: number }[];
+  outputs: SplitterNodeOutput[];
   beltTier: number;
 }
 
@@ -83,7 +89,9 @@ const SplitterNode = ({ data }: NodeProps) => {
       {/* Distinct Source Handles on Right for each output branch */}
       {outputs.map((out, idx) => {
         const topPercent =
-          outputCount === 1
+          out.topPercent !== undefined
+            ? out.topPercent
+            : outputCount === 1
             ? 50
             : 28 + (idx / (outputCount - 1)) * 44; // 28% to 72%
         return (

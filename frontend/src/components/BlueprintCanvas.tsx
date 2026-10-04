@@ -102,12 +102,29 @@ export default function BlueprintCanvas({
 
     const sortedColKeys = Object.keys(columns).map(Number).sort((a, b) => a - b);
 
+    const stepLookup = new Map(result.steps.map((s) => [s.step_id, s]));
+    const resourceKeys = Object.keys(result.resource_usage);
+
     // 3. Hierarchical barycentric row sorting to align connected machines in straight horizontal lines
     const stepRowIndex: Record<string, number> = {};
     sortedColKeys.forEach((colIdx) => {
       const stepIdsInCol = columns[colIdx];
       if (colIdx === 0) {
-        stepIdsInCol.sort((a, b) => a.localeCompare(b));
+        stepIdsInCol.sort((stepA, stepB) => {
+          const getStepRawResourceRow = (stepId: string) => {
+            const step = stepLookup.get(stepId);
+            if (!step || !step.input_rates) return 999;
+            const resIndices = Object.keys(step.input_rates)
+              .map((it) => resourceKeys.indexOf(it))
+              .filter((idx) => idx >= 0);
+            if (!resIndices.length) return 999;
+            return resIndices.reduce((sum, i) => sum + i, 0) / resIndices.length;
+          };
+          const rowA = getStepRawResourceRow(stepA);
+          const rowB = getStepRawResourceRow(stepB);
+          if (rowA !== rowB) return rowA - rowB;
+          return stepA.localeCompare(stepB);
+        });
       } else {
         stepIdsInCol.sort((stepA, stepB) => {
           const getAvgSupplierRow = (stepId: string) => {
@@ -176,7 +193,6 @@ export default function BlueprintCanvas({
     });
 
     // 4. Place Machine Nodes
-    const stepLookup = new Map(result.steps.map((s) => [s.step_id, s]));
     const machinePositions: Record<
       string,
       { x: number; y: number; colIdx: number; rowIdx: number }
@@ -203,7 +219,6 @@ export default function BlueprintCanvas({
     });
 
     // Calculate optimal input item vertical ordering by upstream supplier Y position
-    const resourceKeys = Object.keys(result.resource_usage);
     const resYOffset = ((maxRowsInAnyCol - resourceKeys.length) * ROW_SPACING) / 2;
 
     const stepInputOrders: Record<string, string[]> = {};
@@ -402,6 +417,7 @@ export default function BlueprintCanvas({
             48 + (chunk.length + (chunkIdx < splitterChunks.length - 1 ? 1 : 0)) * 26
           );
           const sY = fromPos.y + (NODE_HEIGHT - sHeight) / 2;
+          const hasPassThrough = chunkIdx < splitterChunks.length - 1;
 
           // Ensure connections in this chunk are strictly sorted by destination Y ascending
           const sortedChunk = [...chunk].sort((a, b) => {
@@ -410,15 +426,67 @@ export default function BlueprintCanvas({
             return yA - yB;
           });
 
-          const sOutputs = sortedChunk.map((c) => ({ to: c.to_step, rate: c.rate }));
-          if (chunkIdx < splitterChunks.length - 1) {
+          // Check if any connection connects to the machine on the same row:
+          const sameRowIdx = sortedChunk.findIndex((c) => {
+            const pos = machinePositions[c.to_step];
+            return pos && pos.rowIdx === fromPos.rowIdx;
+          });
+
+          const sOutputs: { to: string; rate: number; topPercent?: number }[] = [];
+          const connPortPercents: number[] = [];
+
+          if (hasPassThrough) {
+            // Pass-through goes straight through at center (50%)
+            if (sortedChunk.length === 1) {
+              const destPos = machinePositions[sortedChunk[0].to_step];
+              const isAbove = destPos ? destPos.rowIdx < fromPos.rowIdx : false;
+              const p = isAbove ? 24 : 76;
+              sOutputs.push({ to: sortedChunk[0].to_step, rate: sortedChunk[0].rate, topPercent: p });
+              connPortPercents.push(p);
+            } else if (sortedChunk.length >= 2) {
+              sOutputs.push({ to: sortedChunk[0].to_step, rate: sortedChunk[0].rate, topPercent: 24 });
+              connPortPercents.push(24);
+              sOutputs.push({ to: sortedChunk[1].to_step, rate: sortedChunk[1].rate, topPercent: 76 });
+              connPortPercents.push(76);
+            }
             const passThroughRate = sortedConns
               .slice((chunkIdx + 1) * MAX_OUT_PER_SPLITTER)
               .reduce((sum, c) => sum + c.rate, 0);
             sOutputs.push({
               to: `splitter-${fromStepId}-${itemId}-${chunkIdx + 2}`,
               rate: passThroughRate,
+              topPercent: 50,
             });
+          } else {
+            // Last splitter in chain
+            if (sortedChunk.length === 1) {
+              sOutputs.push({ to: sortedChunk[0].to_step, rate: sortedChunk[0].rate, topPercent: 50 });
+              connPortPercents.push(50);
+            } else if (sameRowIdx >= 0) {
+              // Same-row machine connects straight-through at 50%!
+              const otherIdx = sameRowIdx === 0 ? 1 : 0;
+              const otherConn = sortedChunk[otherIdx];
+              const otherPos = machinePositions[otherConn.to_step];
+              const otherIsAbove = otherPos ? otherPos.rowIdx < fromPos.rowIdx : otherIdx === 0;
+              const otherPort = otherIsAbove ? 24 : 76;
+
+              sortedChunk.forEach((c, idx) => {
+                if (idx === sameRowIdx) {
+                  sOutputs.push({ to: c.to_step, rate: c.rate, topPercent: 50 });
+                  connPortPercents.push(50);
+                } else {
+                  sOutputs.push({ to: c.to_step, rate: c.rate, topPercent: otherPort });
+                  connPortPercents.push(otherPort);
+                }
+              });
+            } else {
+              sOutputs.push({ to: sortedChunk[0].to_step, rate: sortedChunk[0].rate, topPercent: 26 });
+              connPortPercents.push(26);
+              if (sortedChunk.length > 1) {
+                sOutputs.push({ to: sortedChunk[1].to_step, rate: sortedChunk[1].rate, topPercent: 74 });
+                connPortPercents.push(74);
+              }
+            }
           }
 
           nodes.push({
@@ -472,19 +540,10 @@ export default function BlueprintCanvas({
               },
             });
           } else if (prevSplitterId) {
-            // Manifold hop between chained splitters
-            const prevPassThroughTopPercent =
-              prevSplitterOutputsCount === 1
-                ? 0.5
-                : 0.28 +
-                  ((prevSplitterOutputsCount - 1) /
-                    (prevSplitterOutputsCount - 1)) *
-                    0.44; // 72%
+            // Manifold hop between chained splitters: straight horizontal line at center (50%)
             const hopSrc = {
               x: prevSplitterX + SPLITTER_WIDTH,
-              y:
-                prevSplitterY +
-                prevSplitterHeight * prevPassThroughTopPercent,
+              y: prevSplitterY + prevSplitterHeight * 0.5,
             };
             const hopDst = { x: sX, y: sY + sHeight * 0.5 };
             const hopUtil =
@@ -492,13 +551,7 @@ export default function BlueprintCanvas({
                 ? Math.min(100, Math.round((runningFeedRate / tierCap) * 100))
                 : 100;
 
-            const jogX = prevSplitterX + SPLITTER_WIDTH + 80;
-            const waypoints = [
-              hopSrc,
-              { x: jogX, y: hopSrc.y },
-              { x: jogX, y: hopDst.y },
-              hopDst,
-            ];
+            const waypoints = [hopSrc, hopDst];
 
             edges.push({
               id: `e-${prevSplitterId}-${sId}`,
@@ -514,7 +567,7 @@ export default function BlueprintCanvas({
                 edgeColor,
                 shortLabel: `${runningFeedRate.toFixed(0)}/${tierCap} (${hopUtil}%)`,
                 detailTooltip: `Manifold pass-through: ${runningFeedRate.toFixed(1)}/m`,
-                labelX: (jogX + hopDst.x) / 2,
+                labelX: (hopSrc.x + hopDst.x) / 2,
                 labelY: hopDst.y - 14,
                 isOverCap: !enforceLimit && runningFeedRate > tierCap + 1e-4,
               },
@@ -536,14 +589,10 @@ export default function BlueprintCanvas({
             const targetY = getDestinationHandleY(conn.to_step, itemId, feedIdx);
             const targetX = destPos ? destPos.x : sX + 350;
 
-            const splitCount = sOutputs.length;
-            const topPercent =
-              splitCount === 1
-                ? 0.5
-                : 0.28 + (cIdx / (splitCount - 1)) * 0.44;
+            const portPercent = connPortPercents[cIdx] ?? 50;
             const splitBranchSrc = {
               x: sX + SPLITTER_WIDTH,
-              y: sY + sHeight * topPercent,
+              y: sY + sHeight * (portPercent / 100),
             };
 
             const isDirectNeighbor = destDepth === fromDepth + 1;
@@ -551,26 +600,36 @@ export default function BlueprintCanvas({
             let labelX = targetX - 85;
             let labelY = targetY;
 
-            const isStraightRow =
-              Math.abs(splitBranchSrc.y - targetY) < 3;
+            const isSameRowMachine = destPos && destPos.rowIdx === fromPos.rowIdx;
+            const isStraightRow = isSameRowMachine && Math.abs(splitBranchSrc.y - targetY) < 18;
 
-            if (isStraightRow && chunkIdx === splitterChunks.length - 1) {
-              // Last splitter connecting straight to same row machine
-              waypoints = [splitBranchSrc, { x: targetX, y: targetY }];
+            if (isStraightRow && portPercent === 50) {
+              // Direct straight connection into same row machine
+              if (Math.abs(splitBranchSrc.y - targetY) < 2) {
+                waypoints = [splitBranchSrc, { x: targetX, y: targetY }];
+              } else {
+                waypoints = [
+                  splitBranchSrc,
+                  { x: targetX - 45, y: splitBranchSrc.y },
+                  { x: targetX - 45, y: targetY },
+                  { x: targetX, y: targetY },
+                ];
+              }
               labelX = (splitBranchSrc.x + targetX) / 2;
               labelY = targetY - 14;
             } else {
               const isGoingUp = targetY < splitBranchSrc.y;
               const isGoingDown = targetY > splitBranchSrc.y;
 
+              // Planar Bus Routing:
+              // Lines going DOWN: lower target turns closer (45px), higher target turns further (85px)
+              // Lines going UP: higher target turns closer (45px), lower target turns further (85px)
               let turnOffset = 45;
               if (sortedChunk.length > 1) {
                 if (isGoingUp) {
-                  // Upper port turns closer (45px), lower port turns further (80px)
-                  turnOffset = cIdx === 0 ? 45 : 80;
+                  turnOffset = cIdx === 0 ? 45 : 85;
                 } else if (isGoingDown) {
-                  // Lower port turns closer (45px), upper port turns further (80px)
-                  turnOffset = cIdx === 1 ? 45 : 80;
+                  turnOffset = cIdx === 1 ? 45 : 85;
                 }
               }
               const turnX = sX + SPLITTER_WIDTH + turnOffset;
@@ -585,13 +644,13 @@ export default function BlueprintCanvas({
                 labelX = turnX + (targetX - turnX) * 0.5;
                 labelY = targetY - 14;
               } else {
+                // Transit channel in open horizontal gap between machine rows
+                const minRow = Math.min(fromPos.rowIdx, destPos?.rowIdx ?? 0);
                 const transitChannelY =
-                  ROW_SPACING * 0.5 +
-                  Math.min(fromPos.rowIdx, destPos?.rowIdx ?? 0) *
-                    ROW_SPACING +
-                  ((transitChannelCounter++ % 4) - 2) * 22;
+                  (minRow + 1) * ROW_SPACING - 90 +
+                  ((transitChannelCounter++ % 3) - 1) * 22;
 
-                const turnX2 = targetX - 60 - (cIdx % 3) * 20;
+                const turnX2 = targetX - 60 - (cIdx % 2) * 25;
                 waypoints = [
                   splitBranchSrc,
                   { x: turnX, y: splitBranchSrc.y },
@@ -679,9 +738,19 @@ export default function BlueprintCanvas({
         let labelY = targetY;
 
         if (isDirectNeighbor) {
-          if (Math.abs(sourcePt.y - targetY) < 3) {
-            // Straight horizontal line
-            waypoints = [sourcePt, { x: targetX, y: targetY }];
+          const isSameRowMachine = destPos && destPos.rowIdx === fromPos.rowIdx;
+          if (isSameRowMachine && Math.abs(sourcePt.y - targetY) < 18) {
+            // Straight horizontal line into same row machine
+            if (Math.abs(sourcePt.y - targetY) < 2) {
+              waypoints = [sourcePt, { x: targetX, y: targetY }];
+            } else {
+              waypoints = [
+                sourcePt,
+                { x: targetX - 45, y: sourcePt.y },
+                { x: targetX - 45, y: targetY },
+                { x: targetX, y: targetY },
+              ];
+            }
             labelX = (sourcePt.x + targetX) / 2;
             labelY = targetY - 14;
           } else {
@@ -696,10 +765,11 @@ export default function BlueprintCanvas({
             labelY = targetY - 14;
           }
         } else {
+          // Open horizontal transit gap between machine rows
+          const minRow = Math.min(fromPos.rowIdx, destPos?.rowIdx ?? 0);
           const transitChannelY =
-            ROW_SPACING * 0.5 +
-            Math.min(fromPos.rowIdx, destPos?.rowIdx ?? 0) * ROW_SPACING +
-            ((transitChannelCounter++ % 4) - 2) * 22;
+            (minRow + 1) * ROW_SPACING - 90 +
+            ((transitChannelCounter++ % 3) - 1) * 22;
 
           const turnX1 = allocateCorridorTrack(fromDepth, 50);
           const turnX2 = targetX - 60;
@@ -789,6 +859,42 @@ export default function BlueprintCanvas({
           ? `⚠️ ${itemName} ${rate.toFixed(0)}/m (> Mk.${selectedTier} ${tierCap}/m - needs ${Math.ceil(rate / tierCap)} lanes)`
           : `${itemName} ${rate.toFixed(0)}/${tierCap} (${resUtil}%)`;
 
+        // Check if any consuming step is on the same row as this resource
+        const sameRowStepIdx = consumingSteps.findIndex((s) => {
+          const pos = machinePositions[s.step_id];
+          return pos && Math.abs(pos.y - y) < 40;
+        });
+
+        const resOutputs: { to: string; rate: number; topPercent?: number }[] = [];
+        const resPortPercents: number[] = [];
+
+        if (consumingSteps.length === 2 && sameRowStepIdx >= 0) {
+          const otherStepIdx = sameRowStepIdx === 0 ? 1 : 0;
+          const otherStep = consumingSteps[otherStepIdx];
+          const otherPos = machinePositions[otherStep.step_id];
+          const otherIsAbove = otherPos ? otherPos.y < y : otherStepIdx === 0;
+          const otherPort = otherIsAbove ? 24 : 76;
+
+          consumingSteps.forEach((s, idx) => {
+            if (idx === sameRowStepIdx) {
+              resOutputs.push({ to: s.step_id, rate: s.input_rates[item], topPercent: 50 });
+              resPortPercents.push(50);
+            } else {
+              resOutputs.push({ to: s.step_id, rate: s.input_rates[item], topPercent: otherPort });
+              resPortPercents.push(otherPort);
+            }
+          });
+        } else {
+          consumingSteps.forEach((s, idx) => {
+            const topP =
+              consumingSteps.length === 1
+                ? 50
+                : 26 + (idx / (consumingSteps.length - 1)) * 48; // 26% to 74%
+            resOutputs.push({ to: s.step_id, rate: s.input_rates[item], topPercent: topP });
+            resPortPercents.push(topP);
+          });
+        }
+
         nodes.push({
           id: splitterId,
           type: "splitterNode",
@@ -796,7 +902,7 @@ export default function BlueprintCanvas({
           data: {
             item,
             totalIn: rate,
-            outputs: consumingSteps.map((s) => ({ to: s.step_id, rate: s.input_rates[item] })),
+            outputs: resOutputs,
             beltTier: getTierForRate(rate),
             isHighlighted: highlightedOffenderId === splitterId,
           },
@@ -836,31 +942,38 @@ export default function BlueprintCanvas({
           const targetY = getDestinationHandleY(step.step_id, item, feedIdx);
           const targetX = destPos ? destPos.x : NODE_OFFSET_X;
 
-          const topPercent =
-            consumingSteps.length === 1
-              ? 0.5
-              : 0.28 + (sIdx / (consumingSteps.length - 1)) * 0.44;
+          const portP = resPortPercents[sIdx] ?? 50;
           const splitBranchSrc = {
             x: splitterX + SPLITTER_WIDTH,
-            y: splitterY + SPLITTER_HEIGHT * topPercent,
+            y: splitterY + SPLITTER_HEIGHT * (portP / 100),
           };
 
-          const isStraight = Math.abs(splitBranchSrc.y - targetY) < 3;
+          const isSameRow = destPos && Math.abs(destPos.y - y) < 40;
+          const isStraight = isSameRow && Math.abs(splitBranchSrc.y - targetY) < 18;
           let waypoints: { x: number; y: number }[] = [];
           let labelX = (splitBranchSrc.x + targetX) / 2;
           let labelY = targetY - 14;
 
-          if (isStraight) {
-            waypoints = [splitBranchSrc, { x: targetX, y: targetY }];
+          if (isStraight && portP === 50) {
+            if (Math.abs(splitBranchSrc.y - targetY) < 2) {
+              waypoints = [splitBranchSrc, { x: targetX, y: targetY }];
+            } else {
+              waypoints = [
+                splitBranchSrc,
+                { x: targetX - 45, y: splitBranchSrc.y },
+                { x: targetX - 45, y: targetY },
+                { x: targetX, y: targetY },
+              ];
+            }
           } else {
             const isGoingUp = targetY < splitBranchSrc.y;
             const isGoingDown = targetY > splitBranchSrc.y;
             let turnOffset = 45;
             if (consumingSteps.length > 1) {
               if (isGoingUp) {
-                turnOffset = sIdx === 0 ? 45 : 80;
+                turnOffset = sIdx === 0 ? 45 : 85;
               } else if (isGoingDown) {
-                turnOffset = sIdx === 1 ? 45 : 80;
+                turnOffset = sIdx === consumingSteps.length - 1 ? 45 : 85;
               }
             }
             const turnX = splitterX + SPLITTER_WIDTH + turnOffset;
@@ -913,13 +1026,23 @@ export default function BlueprintCanvas({
         const srcPt = { x: 40 + 112, y: y + 25 + 56 };
         const turnX = 420;
 
-        const isStraightRow = Math.abs(srcPt.y - targetY) < 3;
+        const isSameRow = destPos && Math.abs(destPos.y - y) < 40;
+        const isStraightRow = isSameRow && Math.abs(srcPt.y - targetY) < 18;
         let waypoints: { x: number; y: number }[] = [];
         let labelX = (srcPt.x + targetX) / 2;
         let labelY = targetY - 14;
 
         if (isStraightRow) {
-          waypoints = [srcPt, { x: targetX, y: targetY }];
+          if (Math.abs(srcPt.y - targetY) < 2) {
+            waypoints = [srcPt, { x: targetX, y: targetY }];
+          } else {
+            waypoints = [
+              srcPt,
+              { x: targetX - 45, y: srcPt.y },
+              { x: targetX - 45, y: targetY },
+              { x: targetX, y: targetY },
+            ];
+          }
         } else {
           waypoints = [
             srcPt,
@@ -1006,22 +1129,55 @@ export default function BlueprintCanvas({
             y: y + 25 + 40,
           };
 
-          const isStraightRow = Math.abs(srcPt.y - targetPt.y) < 3;
+          const isDirectNeighbor = fromPos.colIdx === maxColIdx;
           let waypoints: { x: number; y: number }[] = [];
           let labelX = (srcPt.x + targetPt.x) / 2;
           let labelY = targetPt.y - 14;
 
-          if (isStraightRow) {
-            waypoints = [srcPt, targetPt];
+          if (isDirectNeighbor) {
+            const isSameRowMachine = Math.abs(srcPt.y - targetPt.y) < 18;
+            if (isSameRowMachine) {
+              if (Math.abs(srcPt.y - targetPt.y) < 2) {
+                waypoints = [srcPt, targetPt];
+              } else {
+                waypoints = [
+                  srcPt,
+                  { x: targetPt.x - 45, y: srcPt.y },
+                  { x: targetPt.x - 45, y: targetPt.y },
+                  targetPt,
+                ];
+              }
+              labelX = (srcPt.x + targetPt.x) / 2;
+              labelY = targetPt.y - 14;
+            } else {
+              const turnX = fromPos.x + NODE_WIDTH + 50;
+              waypoints = [
+                srcPt,
+                { x: turnX, y: srcPt.y },
+                { x: turnX, y: targetPt.y },
+                targetPt,
+              ];
+              labelX = turnX + (targetPt.x - turnX) * 0.5;
+              labelY = targetPt.y - 14;
+            }
           } else {
-            const turnX = fromPos.x + NODE_WIDTH + 60;
+            // Transit channel in open horizontal gap between machine rows
+            const minRow = fromPos.rowIdx;
+            const transitChannelY =
+              (minRow + 1) * ROW_SPACING - 90 +
+              ((transitChannelCounter++ % 3) - 1) * 22;
+
+            const turnX1 = fromPos.x + NODE_WIDTH + 50;
+            const turnX2 = targetPt.x - 60;
             waypoints = [
               srcPt,
-              { x: turnX, y: srcPt.y },
-              { x: turnX, y: targetPt.y },
+              { x: turnX1, y: srcPt.y },
+              { x: turnX1, y: transitChannelY },
+              { x: turnX2, y: transitChannelY },
+              { x: turnX2, y: targetPt.y },
               targetPt,
             ];
-            labelX = turnX + (targetPt.x - turnX) * 0.5;
+            labelX = turnX2 + (targetPt.x - turnX2) * 0.5;
             labelY = targetPt.y - 14;
           }
 

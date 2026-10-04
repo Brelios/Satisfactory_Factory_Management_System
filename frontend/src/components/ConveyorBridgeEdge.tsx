@@ -98,12 +98,15 @@ export default function ConveyorBridgeEdge({
     wps[wps.length - 1] = { x: targetX, y: targetY };
 
     if (wps.length === 2 && Math.abs(sourceY - targetY) >= 3) {
-      // 2-segment connection with vertical difference: enforce orthogonal jog instead of diagonal
-      const midX = (sourceX + targetX) / 2;
+      // 2-segment connection with vertical difference: enforce orthogonal jog right before target (or at explicit turnX)
+      const turnX =
+        edgeData.turnX !== undefined
+          ? edgeData.turnX
+          : targetX - 45;
       pathPoints = [
         { x: sourceX, y: sourceY },
-        { x: midX, y: sourceY },
-        { x: midX, y: targetY },
+        { x: turnX, y: sourceY },
+        { x: turnX, y: targetY },
         { x: targetX, y: targetY },
       ];
     } else if (wps.length === 4) {
