@@ -4,161 +4,233 @@
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black?style=for-the-badge&logo=vercel)](https://satisfactoryfactorymanagementsystem.vercel.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![Next.js 16](https://img.shields.io/badge/Next.js-16-black.svg?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-000000.svg?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![React Flow](https://img.shields.io/badge/XYFlow-React--Flow-FF0072.svg?style=for-the-badge)](https://reactflow.dev/)
+[![Satisfactory 1.0](https://img.shields.io/badge/Satisfactory-v1.0%20Ready-F39C12.svg?style=for-the-badge)](https://satisfactory.gamepedia.com/)
 
-🌐 **Live Deployment**: [satisfactoryfactorymanagementsystem.vercel.app](https://satisfactoryfactorymanagementsystem.vercel.app/)
+**Interactive Blueprint Designer & Linear Production Optimizer for Satisfactory 1.0**
+
+👉 **Live Application**: [satisfactoryfactorymanagementsystem.vercel.app](https://satisfactoryfactorymanagementsystem.vercel.app/)
 
 </div>
 
-A mathematical production solver and interactive visual blueprint generator for **Satisfactory**. Input your available mining resource rates, and the system computes the exact, mathematically optimal factory layout — machine counts, recipes, clock speeds, belt tiers, and power requirements — then renders it as an engineering schematic blueprint.
+---
+
+## 📖 Overview
+
+The **Satisfactory Factory Management System** is a full-stack mathematical modeling and visual blueprint design engine for Coffee Stain Studios' **Satisfactory (v1.0)**. 
+
+Instead of relying on guesswork, spreadsheets, or round-number approximations, this application formulates factory planning as an exact **Linear Programming (LP)** optimization problem solved by `scipy.optimize.linprog` (HiGHS solver). It determines the mathematically optimal recipe combination, precise machine counts, exact clock speeds down to fractional percentages, physical conveyor manifolds, and belt tier requirements—then lays out the entire production floor on an interactive, zoomable node-graph blueprint canvas.
 
 ---
 
-## ⚡ Features
+## ⚡ Key Highlights & Capabilities
 
-- **Resource-Constrained Solver** — *"I have 720 Iron Ore and 240 Copper Ore per minute. What's the maximum Modular Frames I can produce?"*
-- **Target-Driven Solver** — *"I want exactly 10 Modular Frames/min. What raw ore nodes and intermediate machines do I need?"*
-- **Mathematical Linear Programming** — Uses `scipy.optimize.linprog` to guarantee exact optimal production balance without rounding guesswork or starvation bottlenecks.
-- **Logistics & Manifold Solver** — Automatically resolves conveyor manifolds, chained splitters/mergers, belt tier assignment, and pipeline fluid limits.
-- **Interactive Blueprint Canvas (React Flow)** — Dynamic pan/zoom node-based flow canvas with machine counts, underclocking percentages, planar bus routing, and color-coded conveyor belts (Mk.1 – Mk.6) and pipelines (Mk.1 – Mk.2).
-- **Alternative Recipe Optimization & Comparison** — Toggle unlocked Alternate Recipes (e.g., Cast Screws, Steeled Frames, Iron Wire) and compare machine footprints side-by-side.
-- **Real-Time Validation & Build Diagnostics** — Live validation feedback detecting bottlenecked belts, fluid limits, and recipe constraints.
-- **Bill of Materials / Shopping List** — Tally total constructors, assemblers, splitters, power consumption in MW, and belt tiers before placing a single foundation in-game.
-- **REST API + Modern Web UI** — FastAPI backend with interactive Swagger documentation paired with Next.js & Tailwind CSS frontend.
+### 🧠 Exact Linear Production Solver
+- **Resource-Constrained Mode (Max Output)**: Specify your mining output (e.g. 720 Iron Ore/min from an overclocked pure node on Mk.5 belts) and target product, and the solver calculates the theoretical maximum output.
+- **Target-Driven Mode**: Specify desired production quotas (e.g. exactly 10 Modular Frames/min), and the solver determines the minimal raw resource intake and intermediate processing tree.
+- **Conservation of Mass Guarantees**: Solves a system of linear equality constraints ensuring every intermediate product has zero surplus waste and zero starvation bottlenecks.
+- **Precision Machine Clocking**: Splits machine allocations into $N$ full-speed (100%) machines and 1 underclocked machine running at the exact residual rate, preventing surging and power spikes.
+
+### 📦 Physical Logistics & Manifold Engine
+- **Chained Manifold Layouts**: Automatically decomposes high-rate multi-machine arrays into serial splitters and mergers, mirroring standard in-game construction.
+- **Conveyor Belt & Pipeline Constraints**:
+  - Supports all Conveyor Belt tiers: Mk.1 (60), Mk.2 (120), Mk.3 (270), Mk.4 (480), Mk.5 (780), and Mk.6 (1200 items/min).
+  - Supports Pipelines: Mk.1 (300 m³/min) and Mk.2 (600 m³/min).
+- **Overclocking & Power Shards**: Allows user-toggled machine overclocking up to 250%, automatically calculating required **Power Shards** and exponential power scaling.
+- **Remainder Handling Strategies**: Configure how surplus/residual outputs are handled—`merge`, `underclock`, or `dedicated` sub-lines.
+
+### 🎨 Interactive Node-Based Blueprint Canvas
+- **Planar Bus Routing**: Custom orthogonal conveyor routing engine with dedicated vertical transit channels and horizontal branch stubs, preventing crisscrossing belts and overlapping labels.
+- **Custom React Flow Nodes**:
+  - `MachineNode`: Displays recipe icon, building model, machine count, active clock speed percentage, power draw, and input/output handles.
+  - `SplitterNode` & `MergerNode`: Manifold distribution hubs with centered port alignment.
+  - `ResourceNode` & `OutputNode`: Raw extraction roots and final factory sink endpoints.
+- **Inspection & Navigation**: Smooth pan, zoom, mini-map, canvas fit-to-view, and high-resolution export.
+
+### 🔄 Multi-Variant Recipe & Tier Comparison
+- **Alternative Recipe Optimization**: Unlock and toggle any Satisfactory 1.0 Alternate Recipe (e.g. Cast Screw, Steeled Frame, Iron Wire, Encased Industrial Pipe) to drastically simplify supply lines.
+- **Side-by-Side Blueprint Diffing**: Compare different recipe combinations side-by-side with clear indicators for minimum machine footprint and lowest power consumption.
+- **Belt Tier Sensitivity Analysis**: Quickly preview how upgrading or restricting your maximum available conveyor belt tier alters splitter counts and line throughput.
+
+### 🩺 Real-Time Build Diagnostics & Validation
+- Instant automated inspection reporting:
+  - Belt throughput saturation and bottlenecks.
+  - Pipeline flow limits.
+  - Click-to-highlight feature identifying offender nodes and connection lines directly on the canvas.
+
+### 📋 Instant Bill of Materials & URL Sharing
+- **Shopping List**: Complete breakdown of total buildings required, power poles, conveyor splitters/mergers, power shards, and MW consumption before placing a single foundation in-game.
+- **1-Click Shareable URLs**: State is serialized into URL hash parameters—share exact factory designs with teammates with one copy-paste.
+- **Built-In Factory Presets**: Pre-configured templates for common milestones (Starter Iron, Modular Frames, Steel Lines, Heavy Modular Frames).
 
 ---
 
-## 📐 Architecture
+## 📐 Architecture & Technology Stack
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Frontend (Next.js 14+ / React / TypeScript / Tailwind CSS) │
-│  • Resource Input Panel   • SVG Blueprint Canvas (Zoom/Pan) │
-│  • Target Selector        • Shopping List & Power Budget    │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ HTTP / Proxy (:3000 -> :8000)
-┌──────────────────────────────▼──────────────────────────────┐
-│  Backend (Python FastAPI)                                    │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌─────────────┐│
-│  │ Linear Solver    │  │ Recipe Graph     │  │ SVG Engine  ││
-│  │ (scipy linprog)  │  │ (NetworkX DAG)   │  │ (Schematic) ││
-│  └──────────────────┘  └──────────────────┘  └─────────────┘│
-│  Game Data Layer: Satisfactory 1.0 Recipes, Items & Machines │
-└─────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│               Frontend: Next.js 16 (App Router) & React 19             │
+│                                                                        │
+│  ┌─────────────────────────┐  ┌─────────────────────────────────────┐  │
+│  │   Control Panel         │  │   Interactive Blueprint Canvas      │  │
+│  │   • Resource Inputs     │  │   • React Flow (@xyflow/react)      │  │
+│  │   • Target Quotas       │  │   • Orthogonal Planar Bus Routing   │  │
+│  │   • Alternate Recipes   │  │   • Machine, Splitter, Merger Nodes │  │
+│  │   • Belt Tier Settings  │  │   • Animated Belt-Speed Edges       │  │
+│  └─────────────────────────┘  └─────────────────────────────────────┘  │
+│  ┌─────────────────────────┐  ┌──────────────────┐  ┌───────────────┐  │
+│  │ Shopping List & Power   │  │ Recipe Compare   │  │ Diagnostics   │  │
+│  └─────────────────────────┘  └──────────────────┘  └───────────────┘  │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ HTTP Proxy (:3000/api/* -> :8000)
+┌───────────────────────────────────▼────────────────────────────────────┐
+│                    Backend: Python 3.11+ & FastAPI                     │
+│                                                                        │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │ ProductionSolver (scipy.optimize.linprog HiGHS)                  │  │
+│  │ • Objective: Maximize target items / Minimize power consumption  │  │
+│  │ • Conservation of mass equality constraints                      │  │
+│  │ • Raw mining extraction inequality bounds                        │  │
+│  └──────────────────────────────────┬───────────────────────────────┘  │
+│                                     │                                  │
+│  ┌──────────────────────────────────▼───────────────────────────────┐  │
+│  │ LogisticsSolver (Manifold Routing & Belt Assignment)              │  │
+│  │ • Chained Splitter & Merger topology                             │  │
+│  │ • Belt tier sizing (Mk.1 – Mk.6) & Pipe sizing (Mk.1 – Mk.2)     │  │
+│  │ • Power shard allocation for overclocked edge units              │  │
+│  └──────────────────────────────────┬───────────────────────────────┘  │
+│                                     │                                  │
+│  ┌──────────────────────────────────▼───────────────────────────────┐  │
+│  │ Satisfactory 1.0 Game Data Layer                                 │  │
+│  │ • Items (Solids, Liquids, Gases)                                 │  │
+│  │ • Recipes (Standard & Alternate)                                 │  │
+│  │ • Buildings & Power Scaling Curves                               │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 🧮 Mathematical Solver Mechanics
+
+### 1. Linear Programming Formulation
+Production planning is structured as a continuous linear program:
+
+$$\max \quad \mathbf{c}^T \mathbf{x} \quad \text{subject to} \quad \mathbf{A}_{eq} \mathbf{x} = \mathbf{b}_{eq}, \quad \mathbf{A}_{ub} \mathbf{x} \le \mathbf{b}_{ub}, \quad \mathbf{x} \ge \mathbf{0}$$
+
+- **Decision Variables ($\mathbf{x}$)**: The execution rate $x_r$ (cycles per minute) for each game recipe $r$.
+- **Intermediate Mass Balance ($\mathbf{A}_{eq} \mathbf{x} = \mathbf{0}$)**: For every non-resource, non-target item $i$, net generation must balance net consumption:
+  $$\sum_{r} P_{i, r} x_r - \sum_{r} C_{i, r} x_r = 0$$
+- **Resource Constraints ($\mathbf{A}_{ub} \mathbf{x} \le \mathbf{R}$)**: Raw resource extraction cannot exceed the input limits:
+  $$\sum_{r} C_{raw, r} x_r \le R_{available}$$
+
+### 2. Residual Machine Underclocking
+To avoid the power waste and line stuttering caused by fractional machines shutting down, the system computes:
+- $\text{Total Machines} = \lceil M \rceil$
+- $N_{normal} = \lfloor M \rfloor$ machines operating at $100\%$ clock speed
+- $1$ residual machine operating at $c_{residual} = (M - \lfloor M \rfloor) \times 100\%$
+
+### 3. Non-Linear Power Scaling (Satisfactory 1.0)
+For overclocked machines running at clock speed percentage $c \in [100, 250]$:
+$$P(c) = P_{base} \times \left(\frac{c}{100}\right)^{1.321928}$$
+
+---
+
+## 🚚 Logistics & Belt Specifications
+
+| Conveyor Tier | Max Speed (items/min) | Primary Material |
+| :--- | :--- | :--- |
+| **Conveyor Belt Mk.1** | `60` | Iron Plates |
+| **Conveyor Belt Mk.2** | `120` | Reinforced Iron Plates |
+| **Conveyor Belt Mk.3** | `270` | Steel Beams |
+| **Conveyor Belt Mk.4** | `480` | Encased Industrial Beams |
+| **Conveyor Belt Mk.5** | `780` | Alclad Aluminum Sheets |
+| **Conveyor Belt Mk.6** | `1200` | Fused Modular Frames |
+
+| Pipeline Tier | Max Flow Rate (m³/min) | Primary Material |
+| :--- | :--- | :--- |
+| **Pipeline Mk.1** | `300` | Copper Sheets |
+| **Pipeline Mk.2** | `600` | Aluminum Casings |
 
 ---
 
 ## 💻 Prerequisites
 
-Ensure you have the following installed on your machine:
+Ensure you have the following installed:
 
-1. **Git**: [Download Git](https://git-scm.com/downloads)
-2. **Python 3.11+**: [Download Python](https://www.python.org/downloads/) *(Make sure to check "Add Python to PATH" during installation on Windows)*
-3. **Node.js 18+ & npm**: [Download Node.js](https://nodejs.org/)
+1. **Git**: [git-scm.com](https://git-scm.com/downloads)
+2. **Python 3.11+**: [python.org](https://www.python.org/downloads/) *(Verify "Add Python to PATH" is enabled on Windows)*
+3. **Node.js 18+ & npm**: [nodejs.org](https://nodejs.org/)
 
 ---
 
-## 🚀 Quick Start / Local Installation
+## 🚀 Quick Start / Local Setup
 
-Clone the repository to your local machine:
+Clone the repository:
 
 ```bash
 git clone https://github.com/Brelios/Satisfactory_Factory_Management_System.git
 cd Satisfactory_Factory_Management_System
 ```
 
-### 1. Set Up & Start the Backend
+### 1. Start the Backend API
 
-Open a terminal in the project root:
-
-#### Windows (PowerShell / Command Prompt)
+#### Windows (PowerShell)
 ```powershell
-# Navigate to the backend directory
 cd backend
-
-# Create a virtual environment (recommended)
 python -m venv venv
-
-# Activate virtual environment
-# In PowerShell:
 .\venv\Scripts\Activate.ps1
-# (Or in CMD):
-# .\venv\Scripts\activate.bat
-
-# Install dependencies in editable mode
 pip install -e ".[dev]"
-
-# Start the FastAPI server
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 #### macOS / Linux
 ```bash
-# Navigate to backend directory
 cd backend
-
-# Create and activate virtual environment
 python3 -m venv venv
 source venv/bin/activate
-
-# Install dependencies
 pip install -e ".[dev]"
-
-# Start the FastAPI server
 python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-The backend API will start at:
-- **API URL**: `http://localhost:8000`
+- **API Endpoint**: `http://localhost:8000`
 - **Interactive Swagger Docs**: `http://localhost:8000/docs`
 
 ---
 
-### 2. Set Up & Start the Frontend
+### 2. Start the Frontend Application
 
-Open a **second terminal window** in the project root:
+In a separate terminal window:
 
 ```bash
-# Navigate to the frontend directory
 cd frontend
-
-# Install Node dependencies
 npm install
-
-# Start the Next.js development server
 npm run dev
 ```
 
-The web dashboard is now accessible at:
-👉 **`http://localhost:3000`**
+- **Web Dashboard**: `http://localhost:3000`
 
-*(Requests from the frontend to `/api/*` are automatically proxied to the Python backend on port 8000).*
-
----
-
-## 🎮 How to Use
-
-1. **Choose Your Planning Mode**:
-   - **Max Output (Resource Constrained)**: Enter the exact output of your miners (e.g., 720 Iron Ore from an Overclocked Pure Node on a Mk.5 Belt) and select target products to maximize.
-   - **Target Driven**: Specify target production quotas (e.g., 10 Modular Frames/min) to calculate exactly how much raw ore and intermediate processing is required.
-2. **Configure Resources & Target Parts**:
-   - Add multiple raw inputs (Iron Ore, Copper Ore, Coal, Limestone, etc.).
-   - Pick the components you wish to produce.
-3. **Solve Blueprint**:
-   - Click **SOLVE BLUEPRINT**.
-   - The engine instantly calculates:
-     - **Machine Counts & Underclocking**: Exact numbers of Smelters, Constructors, and Assemblers (including clock speed % for edge machines).
-     - **Power Grid Budget**: Total MW required to run the line.
-     - **Logistics & Belt Tiers**: Minimum conveyor speeds (Mk.1 through Mk.6) required per connection.
-     - **2D Schematic**: A complete visual factory floorplan diagram ready to follow in-game.
+*(API requests matching `/api/*` are automatically proxied to port 8000 by Next.js).*
 
 ---
 
-## 🛠️ API Usage Example
+## 🛠️ API Reference
 
-You can also use the backend directly as a standalone headless service or CLI:
+### Key Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/solve` | Solves production flow, builds logistics manifolds, and outputs graph layout |
+| `POST` | `/api/solve/compare` | Evaluates alternative recipe combinations and returns comparative variants |
+| `GET` | `/api/items` | Retrieves all Satisfactory items (solids, fluids, gases) |
+| `GET` | `/api/recipes` | Retrieves available recipes with optional item and alternate filters |
+| `GET` | `/api/buildings` | Lists production machines and base power ratings |
+| `GET` | `/api/resources` | Lists extractable raw resources |
+
+### Example: Solve Production Request
 
 ```bash
 curl -X POST http://localhost:8000/api/solve \
@@ -169,15 +241,32 @@ curl -X POST http://localhost:8000/api/solve \
       "iron_ore": 720
     },
     "target_items": ["modular_frame"],
-    "optimization": "maximize_output"
+    "optimization": "maximize_output",
+    "max_belt_tier": 3,
+    "enforce_belt_limit": true
   }'
 ```
 
-**Response Output Preview:**
-- **Max Output**: `30.0 Modular Frames/min`
-- **Total Machines**: `97` (24 Smelters, 21 Rod Constructors, 14 Plate Constructors, 14 Screw Constructors, 9 RIP Assemblers, 15 Frame Assemblers)
-- **Power Budget**: `647.2 MW`
-- **Blueprint**: Full vectorized SVG schema payload.
+---
+
+## 🧪 Testing
+
+### Backend Unit & Integration Tests
+```bash
+cd backend
+pytest
+```
+Includes tests for:
+- Mass balance validation
+- Resource constraint linear programming
+- Chained manifold decomposition
+- Pipeline fluid and conveyor speed boundaries
+
+### Frontend Typechecking & Production Build
+```bash
+cd frontend
+npm run build
+```
 
 ---
 
@@ -227,6 +316,8 @@ Satisfactory_Factory_Management_System/
 │   │   │   └── ProductionTable.tsx  # Granular per-machine rate breakdown
 │   │   └── lib/
 │   │       ├── api.ts               # Typed fetch client
+│   │       ├── presets.ts           # Factory starter templates
+│   │       ├── share.ts             # State serialization & URL hash generation
 │   │       └── types.ts             # TypeScript mirror of API schemas
 │   ├── package.json
 │   └── next.config.ts               # API rewrite proxy configuration
@@ -238,22 +329,23 @@ Satisfactory_Factory_Management_System/
 
 ## ❓ Troubleshooting
 
-- **PowerShell Script Execution Error (`Activate.ps1 cannot be loaded`)**:
-  Run PowerShell as Administrator or execute for current user:
+- **PowerShell Execution Policy**:
+  If `Activate.ps1 cannot be loaded` appears:
   ```powershell
   Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force
   ```
-- **Port Conflicts (`Port 8000 or 3000 already in use`)**:
-  - Run the backend on a different port:
-    ```bash
-    python -m uvicorn app.main:app --port 8001 --reload
-    ```
-    Then update the proxy target in `frontend/next.config.ts`.
-- **Frontend can't connect to backend**:
-  Verify the Python backend is running at `http://localhost:8000` before querying from the frontend UI.
+- **Port In Use (8000 or 3000)**:
+  Run backend on a custom port:
+  ```powershell
+  python -m uvicorn app.main:app --port 8001 --reload
+  ```
+  Then adjust the proxy destination in `frontend/next.config.ts`.
+- **Frontend / Backend Communication**:
+  Ensure the backend is running and listening on port 8000 before clicking **Solve Blueprint**.
 
 ---
 
-## 📄 License
+## 📄 License & Attribution
 
-Distributed under the MIT License. Contributions and feedback are welcome!
+- Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for details.
+- Game assets, recipe values, and Satisfactory imagery are intellectual property of **Coffee Stain Studios**. This project is an unofficial community tool.
