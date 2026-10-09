@@ -1,6 +1,15 @@
 # 🏭 Satisfactory Factory Management System
 
-Deployment- https://satisfactoryfactorymanagementsystem.vercel.app/
+<div align="center">
+
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black?style=for-the-badge&logo=vercel)](https://satisfactoryfactorymanagementsystem.vercel.app/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-black.svg?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+
+🌐 **Live Deployment**: [satisfactoryfactorymanagementsystem.vercel.app](https://satisfactoryfactorymanagementsystem.vercel.app/)
+
+</div>
 
 A mathematical production solver and interactive visual blueprint generator for **Satisfactory**. Input your available mining resource rates, and the system computes the exact, mathematically optimal factory layout — machine counts, recipes, clock speeds, belt tiers, and power requirements — then renders it as an engineering schematic blueprint.
 
@@ -11,10 +20,12 @@ A mathematical production solver and interactive visual blueprint generator for 
 - **Resource-Constrained Solver** — *"I have 720 Iron Ore and 240 Copper Ore per minute. What's the maximum Modular Frames I can produce?"*
 - **Target-Driven Solver** — *"I want exactly 10 Modular Frames/min. What raw ore nodes and intermediate machines do I need?"*
 - **Mathematical Linear Programming** — Uses `scipy.optimize.linprog` to guarantee exact optimal production balance without rounding guesswork or starvation bottlenecks.
-- **2D Schematic Blueprint Generator** — Renders clean SVG flow schematics with machine counts, underclocking percentages, manifold connections, and color-coded belt tiers (Mk.1 – Mk.6).
-- **Alternative Recipe Optimization** — Toggle unlocked Alternate Recipes (e.g., Cast Screws, Steeled Frames, Iron Wire) to drastically simplify logistics or eliminate intermediate dependencies.
+- **Logistics & Manifold Solver** — Automatically resolves conveyor manifolds, chained splitters/mergers, belt tier assignment, and pipeline fluid limits.
+- **Interactive Blueprint Canvas (React Flow)** — Dynamic pan/zoom node-based flow canvas with machine counts, underclocking percentages, planar bus routing, and color-coded conveyor belts (Mk.1 – Mk.6) and pipelines (Mk.1 – Mk.2).
+- **Alternative Recipe Optimization & Comparison** — Toggle unlocked Alternate Recipes (e.g., Cast Screws, Steeled Frames, Iron Wire) and compare machine footprints side-by-side.
+- **Real-Time Validation & Build Diagnostics** — Live validation feedback detecting bottlenecked belts, fluid limits, and recipe constraints.
 - **Bill of Materials / Shopping List** — Tally total constructors, assemblers, splitters, power consumption in MW, and belt tiers before placing a single foundation in-game.
-- **REST API + Modern Web UI** — FastAPI backend with interactive Swagger documentation paired with a high-performance Next.js & Tailwind CSS frontend.
+- **REST API + Modern Web UI** — FastAPI backend with interactive Swagger documentation paired with Next.js & Tailwind CSS frontend.
 
 ---
 
@@ -187,19 +198,31 @@ Satisfactory_Factory_Management_System/
 │   │   ├── solver/
 │   │   │   ├── recipe_graph.py      # NetworkX DAG builder & cycle resolution
 │   │   │   ├── linear_solver.py     # SciPy linear programming production optimizer
+│   │   │   ├── logistics_solver.py  # Chained manifold, splitter/merger & belt logistics
 │   │   │   └── rate_calculator.py   # Machine rounding, clocking & belt tier selection
 │   │   └── layout/
 │   │       └── svg_generator.py     # SVG schematic generation engine
 │   ├── pyproject.toml               # Python package configuration
-│   └── test_api.py                  # Integration verification script
+│   ├── test_api_unit.py             # Backend unit test suite
+│   └── test_logistics_solver.py     # Manifold & logistics validation tests
 ├── frontend/
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── page.tsx             # Interactive dashboard (Inputs, SVG Viewer, Tables)
+│   │   │   ├── page.tsx             # Interactive dashboard (Inputs, React Flow Canvas, Panels)
 │   │   │   ├── layout.tsx           # Dark theme layout shell
 │   │   │   └── globals.css          # Tailwind CSS & blueprint styling
 │   │   ├── components/
-│   │   │   ├── BlueprintViewer.tsx  # Interactive SVG pan/zoom viewer & exports
+│   │   │   ├── BlueprintCanvas.tsx  # React Flow canvas with custom nodes & bus routing
+│   │   │   ├── ConveyorBridgeEdge.tsx # Conveyor routing & belt-tier edge renderer
+│   │   │   ├── MachineNode.tsx      # Building node with clock speed & I/O ports
+│   │   │   ├── SplitterNode.tsx     # Dynamic manifold splitter node
+│   │   │   ├── MergerNode.tsx       # Dynamic manifold merger node
+│   │   │   ├── ResourceNode.tsx     # Ore & fluid extraction input node
+│   │   │   ├── OutputNode.tsx       # End-product sink output node
+│   │   │   ├── AltRecipePanel.tsx   # Alternate recipe selection drawer
+│   │   │   ├── TierComparePanel.tsx # Belt tier throughput impact comparison
+│   │   │   ├── ComparePanel.tsx     # Side-by-side recipe solver diffing
+│   │   │   ├── ValidationPanel.tsx  # Real-time build diagnostic warnings
 │   │   │   ├── ShoppingList.tsx     # Building count & logistics checklist
 │   │   │   └── ProductionTable.tsx  # Granular per-machine rate breakdown
 │   │   └── lib/
@@ -207,6 +230,7 @@ Satisfactory_Factory_Management_System/
 │   │       └── types.ts             # TypeScript mirror of API schemas
 │   ├── package.json
 │   └── next.config.ts               # API rewrite proxy configuration
+├── LICENSE                          # MIT License
 └── README.md
 ```
 
